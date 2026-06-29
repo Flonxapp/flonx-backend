@@ -24,6 +24,11 @@ export const handlePaymentSuccess = async (
     }
 
     if (metaData.paymentPurpose === ENUM_PAYMENT_PURPOSE.ORDER) {
+      const existingPayment = await Transaction.findOne({
+        stripePaymentIntentId: transactionId,
+      });
+      if (existingPayment) return;
+
       const order: any = await Order.findById(metaData.orderId);
       if (!order) return;
       const ORDER_COLORS = [

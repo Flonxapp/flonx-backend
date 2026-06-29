@@ -17,7 +17,6 @@ import { handlePaymentSuccess } from './handlePaymentSuccess';
 
 const stripe = new Stripe(config.stripe.stripe_secret_key as string);
 const handleWebhook = async (req: Request, res: Response) => {
-  console.log('Received Stripe Webhook:', req.body);
   const endpointSecret = config.stripe.webhook_endpoint_secret as string;
   const sig = req.headers['stripe-signature'];
 
@@ -27,6 +26,7 @@ const handleWebhook = async (req: Request, res: Response) => {
       sig as string,
       endpointSecret,
     );
+    logger.info(`Received Stripe webhook: ${event.type}`, { id: event.id });
 
     // Handle different event types
     switch (event.type) {
@@ -49,11 +49,9 @@ const handleWebhook = async (req: Request, res: Response) => {
       }
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        console.log('PaymentIntent succeeded:', paymentIntent);
         // If you stored metadata while creating PaymentIntent
         const metadata = paymentIntent.metadata;
         const paymentMethodId: any = paymentIntent?.payment_method;
-        console.log('PaymentIntent succeeded with metadata:', paymentIntent);
         const customerId = paymentIntent.customer;
         await handlePaymentSuccess(
           metadata,
@@ -89,10 +87,6 @@ const handleWebhook = async (req: Request, res: Response) => {
       case 'transfer.created': {
         const transfer = event.data.object as Stripe.Transfer;
 
-        console.log('transfer =======>', transfer);
-
-        console.log('eventid', event.id);
-
         const venueOwner = await VenueOwner.findOne({
           stripeConnectedAccountId: transfer.destination,
         }).select('_id');
@@ -115,8 +109,6 @@ const handleWebhook = async (req: Request, res: Response) => {
             stripeEventId: event.id,
             metadata: transfer.metadata,
           });
-
-          console.log('transaction', createTransfer);
 
           // mark the order so pending balance calc is correct
           if (transfer.metadata?.taskId) {

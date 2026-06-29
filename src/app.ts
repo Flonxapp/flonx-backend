@@ -20,10 +20,12 @@ import onboardingRefresh from './app/handleStripe/onboardingRefresh';
 import handleWebhook from './app/handleStripe/webhook';
 import { generateVenueQRCode } from './app/helper/generateVenueQrCode';
 import sendContactUsEmail from './app/helper/sendContactUsEmail';
+import auth from './app/middlewares/auth';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 import notFound from './app/middlewares/notFound';
 import { rateLimiters } from './app/middlewares/ratelimiter.middleware';
 import router from './app/routes';
+import { USER_ROLE } from './app/modules/user/user.constant';
 const app: Application = express();
 // parser
 app.post(
@@ -76,37 +78,47 @@ app.post('/contact-us', sendContactUsEmail);
 router.get('/stripe/onboarding/refresh', onboardingRefresh);
 
 // for s3 bucket--------------
-app.post('/generate-presigned-url', async (req, res) => {
-  const { fileType, fileCategory } = req.body;
-  if (!fileType || !fileCategory) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'File type and file category is required',
-    );
-  }
+const allRoles = Object.values(USER_ROLE);
 
-  try {
-    const result = await generatePresignedUrl({ fileType, fileCategory });
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Error generating pre-signed URL' });
-  }
-});
+app.post(
+  '/generate-presigned-url',
+  auth(...allRoles),
+  async (req, res, next) => {
+    const { fileType, fileCategory } = req.body;
+    if (!fileType || !fileCategory) {
+      return next(
+        new AppError(
+          httpStatus.BAD_REQUEST,
+          'File type and file category is required',
+        ),
+      );
+    }
 
-app.post('/generate-multiple-presigned-urls', async (req, res) => {
-  const { files } = req.body;
+    try {
+      const result = await generatePresignedUrl({ fileType, fileCategory });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
-  try {
-    const result = await generateMultiplePresignedUrls(files);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error generating multiple pre-signed URLs',
-    });
-  }
-});
+app.post(
+  '/generate-multiple-presigned-urls',
+  auth(...allRoles),
+  async (req, res, next) => {
+    const { files } = req.body;
 
-app.post('/generate-qr-code/:id', async (req, res) => {
+    try {
+      const result = await generateMultiplePresignedUrls(files);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+app.post('/generate-qr-code/:id', auth(...allRoles), async (req, res) => {
   const { id } = req.params;
   try {
     const qrCodeUrl = await generateVenueQRCode(id);

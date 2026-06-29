@@ -118,6 +118,9 @@ export const uploadFile = () => {
   const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
   }).fields([
     { name: 'image', maxCount: 1 },
     { name: 'profile_image', maxCount: 1 },

@@ -1,4 +1,5 @@
 import { PipelineStage, Model } from 'mongoose';
+import { escapeRegex, sanitizeQueryObject } from './queryBuilder.utils';
 
 class QueryBuilder2<T> {
   public query: Record<string, unknown>;
@@ -13,11 +14,12 @@ class QueryBuilder2<T> {
 
   search(searchableFields: string[]) {
     const searchTerm = this?.query?.search as string;
-    if (searchTerm) {
+    if (searchTerm && typeof searchTerm === 'string') {
+      const safeSearchTerm = escapeRegex(searchTerm);
       this.pipeline.push({
         $match: {
           $or: searchableFields.map((field) => ({
-            [field]: { $regex: searchTerm, $options: 'i' },
+            [field]: { $regex: safeSearchTerm, $options: 'i' },
           })),
         },
       });
@@ -29,16 +31,17 @@ class QueryBuilder2<T> {
     const queryObj = { ...this.query };
     const excludeFields = ['search', 'sort', 'limit', 'page', 'fields'];
     excludeFields.forEach((el) => delete queryObj[el]);
+    const sanitizedQueryObj = sanitizeQueryObject(queryObj);
 
-    if (Object.keys(queryObj).length) {
-      this.pipeline.push({ $match: queryObj });
+    if (Object.keys(sanitizedQueryObj).length) {
+      this.pipeline.push({ $match: sanitizedQueryObj });
     }
     return this;
   }
 
   sort() {
     const sortField = this.query.sort as string;
-    if (sortField) {
+    if (sortField && /^-?[a-zA-Z0-9_.]+$/.test(sortField)) {
       const order = sortField.startsWith('-') ? -1 : 1;
       const fieldName = sortField.replace('-', '');
       this.pipeline.push({ $sort: { [fieldName]: order } });

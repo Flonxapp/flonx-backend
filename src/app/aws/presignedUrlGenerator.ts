@@ -20,30 +20,44 @@ interface GeneratePresignedUrlRequest {
   fileCategory: string;
 }
 
+const ALLOWED_CONTENT_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'application/pdf': 'pdf',
+};
+
+const CATEGORY_FOLDERS: Record<string, string> = {
+  profile_image: 'uploads/images/profile/',
+  project_image: 'uploads/images/project_image/',
+  project_document: 'uploads/documents/project_document/',
+  podcast_cover: 'uploads/documents/podcast_cover/',
+  material_image: 'uploads/images/project_material_image/',
+  review_video: 'uploads/videos/review_videos/raw/',
+};
+
 export const generatePresignedUrl = async ({
   fileType,
   fileCategory,
 }: GeneratePresignedUrlRequest) => {
-  const timestamp = Date.now();
-
-  let folder = '';
-  if (fileCategory === 'profile_image') {
-    folder = 'uploads/images/profile/';
-  } else if (fileCategory === 'project_image') {
-    folder = 'uploads/images/project_image/';
-  } else if (fileCategory === 'project_document') {
-    folder = 'uploads/documents/project_document/';
-  } else if (fileCategory === 'podcast_cover') {
-    folder = 'uploads/documents/podcast_cover/';
-  } else if (fileCategory === 'material_image') {
-    folder = 'uploads/images/project_material_image/';
-  } else if (fileCategory === 'review_video') {
-    folder = 'uploads/videos/review_videos/raw/';
+  const extension = ALLOWED_CONTENT_TYPES[fileType];
+  if (!extension) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Unsupported file type');
   }
+
+  const folder = CATEGORY_FOLDERS[fileCategory];
+  if (!folder) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Unsupported file category');
+  }
+
+  const timestamp = Date.now();
 
   const fileName = `${folder}${timestamp}-${Math.random()
     .toString(36)
-    .substring(2, 15)}.${fileType.split('/')[1]}`;
+    .substring(2, 15)}.${extension}`;
 
   const command = new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME!,
