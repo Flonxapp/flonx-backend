@@ -620,16 +620,20 @@ const changeOrderStatus = async (
 };
 
 const tipToBartender = async (
+  profileId: string,
   orderId: string,
   amount: number,
   paymentMethodId?: string,
 ) => {
-  const order: any = await Order.findById(orderId).populate(
-    'customer',
-    'stripeCustomerId email name',
-  );
+  const order: any = await Order.findOne({
+    _id: orderId,
+    customer: profileId,
+  }).populate('customer', 'stripeCustomerId email name');
   if (!order) {
-    throw new AppError(httpStatus.NOT_FOUND, 'Order not found');
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'Order not found or access denied',
+    );
   }
   const amountInCents = Math.round(amount * 100);
   // 5. STRIPE CUSTOMER

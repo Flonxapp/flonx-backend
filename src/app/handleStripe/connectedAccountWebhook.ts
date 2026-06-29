@@ -15,7 +15,6 @@ import { errorLogger, logger } from '../shared/logger';
 
 const stripe = new Stripe(config.stripe.stripe_secret_key as string);
 const handleConnectedAccountWebhook = async (req: Request, res: Response) => {
-  console.log('Received Stripe Connected Account Webhook:', req.body);
   const endpointSecret = config.stripe
     .webhook_endpoint_secret_for_connected as string;
 
@@ -27,6 +26,9 @@ const handleConnectedAccountWebhook = async (req: Request, res: Response) => {
       sig as string,
       endpointSecret,
     );
+    logger.info(`Received Stripe connected account webhook: ${event.type}`, {
+      id: event.id,
+    });
 
     // Handle different event types
     switch (event.type) {

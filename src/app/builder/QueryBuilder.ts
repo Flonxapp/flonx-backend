@@ -1,4 +1,5 @@
 import { FilterQuery, Query } from 'mongoose';
+import { escapeRegex, sanitizeQueryObject } from './queryBuilder.utils';
 
 class QueryBuilder<T> {
   public modelQuery: Query<T[], T>;
@@ -9,12 +10,13 @@ class QueryBuilder<T> {
   }
   search(searchableFields: string[]) {
     const searchTerm = this?.query?.searchTerm;
-    if (searchTerm) {
+    if (searchTerm && typeof searchTerm === 'string') {
+      const safeSearchTerm = escapeRegex(searchTerm);
       this.modelQuery = this?.modelQuery.find({
         $or: searchableFields.map(
           (field) =>
             ({
-              [field]: { $regex: searchTerm, $options: 'i' },
+              [field]: { $regex: safeSearchTerm, $options: 'i' },
             }) as FilterQuery<T>,
         ),
       });
@@ -25,7 +27,8 @@ class QueryBuilder<T> {
     const queryObj = { ...this.query }; // copy the query
     const excludeFields = ['searchTerm', 'sort', 'limit', 'page', 'fields'];
     excludeFields.forEach((el) => delete queryObj[el]);
-    this.modelQuery = this.modelQuery.find(queryObj as FilterQuery<T>);
+    const sanitizedQueryObj = sanitizeQueryObject(queryObj);
+    this.modelQuery = this.modelQuery.find(sanitizedQueryObj as FilterQuery<T>);
     return this;
   }
   // sort() {
@@ -38,7 +41,7 @@ class QueryBuilder<T> {
   sort() {
     const sortField = this.query.sort as string;
 
-    if (sortField) {
+    if (sortField && /^-?[a-zA-Z0-9_.]+$/.test(sortField)) {
       // Check if the sortField starts with '-' (indicating descending order)
       const order = sortField.startsWith('-') ? -1 : 1;
       const fieldName = sortField.replace('-', '');

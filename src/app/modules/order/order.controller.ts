@@ -75,6 +75,7 @@ const changeStatus = catchAsync(async (req, res) => {
 });
 const tipToBartender = catchAsync(async (req, res) => {
   const result = await OrderService.tipToBartender(
+    req?.user?.profileId,
     req.params.id,
     req.body.amount,
     req?.body?.paymentMethodId,
