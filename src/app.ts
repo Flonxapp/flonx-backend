@@ -24,8 +24,8 @@ import auth from './app/middlewares/auth';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 import notFound from './app/middlewares/notFound';
 import { rateLimiters } from './app/middlewares/ratelimiter.middleware';
-import router from './app/routes';
 import { USER_ROLE } from './app/modules/user/user.constant';
+import router from './app/routes';
 const app: Application = express();
 // parser
 app.post(
@@ -47,22 +47,14 @@ app.use(helmet());
 app.use(
   cors({
     origin: [
-      'https://flonx-admin-dashboard.vercel.app',
-      'https://sampli.io',
-      'https://dashboard.sampli.io',
-      'https://dashboard.sampli.io',
-      'https://sampli-dashbaord.vercel.app',
       'http://45.55.251.203:3001',
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:5173',
-      'http://localhost:5172',
-      'http://localhost:5175',
-      'http://localhost:5174',
-      'https://flonx-bartender-flow-client.vercel.app',
-      'https://flonx-progressive-web-client.vercel.app',
-      'https://flonx-venue-owner-dashboard-client.vercel.app',
-      'http://localhost:5174',
+      'https://admin.flonxapp.com',
+      'https://venue.flonxapp.com',
+      'https://bartender.flonxapp.com',
+      'https://flonxapp.com',
     ],
     // origin: '*',
     credentials: true,
