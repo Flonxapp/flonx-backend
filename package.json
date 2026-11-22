@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start:dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "start:prod": "./dist/server.js",
+    "start:prod": "node dist/server.js",
     "lint": "eslint src --ignore-path .eslintignore --ext .ts",
     "lint:fix": " npx eslint src --fix",
     "prettier": "prettier --ignore-path .gitignore --write \"./src**/*.+(js|ts|json)\"",
