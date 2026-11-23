@@ -10,7 +10,12 @@ import { otpLimiter } from '../../config/reteLimit.config';
 
 const router = Router();
 
-router.post('/register-user', otpLimiter, userControllers.registerUser);
+router.post(
+  '/register-user',
+  otpLimiter,
+  validateRequest(userValidations.registerUserValidationSchema),
+  userControllers.registerUser,
+);
 
 router.post(
   '/verify-code',

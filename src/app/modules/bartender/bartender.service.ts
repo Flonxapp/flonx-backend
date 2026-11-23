@@ -1,34 +1,23 @@
 import mongoose from 'mongoose';
 import { ENUM_JOB_STATUS } from '../job/job.enum';
 import { Bartender } from './bartender.model';
+import { getPagination, getSearchTerm } from '../../utilities/listQuery';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const getAllBartender = async (query: Record<string, unknown>) => {
-  const page = Number(query.page) || 1;
-  const limit = Number(query.limit) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = getPagination(query);
   const status = query.status;
-  const searchTerm = query.searchTerm || '';
+  const searchTerm = getSearchTerm(query);
   const lat = Number(query.lat);
   const lng = Number(query.lng);
-  const maxDistance = Number(query.maxDistance) * 1000 || 5000; // in meters
+  // km in the query, metres for Mongo; capped at 100 km
+  const maxDistance = Math.min(
+    Number(query.maxDistance) * 1000 || 5000,
+    100000,
+  );
 
+  // Never copy raw query keys into the match stage (operator injection).
   const filters: any = {};
-  Object.keys(query).forEach((key) => {
-    if (
-      ![
-        'searchTerm',
-        'page',
-        'limit',
-        'lat',
-        'lng',
-        'maxDistance',
-        'status',
-      ].includes(key)
-    ) {
-      filters[key] = query[key];
-    }
-  });
   const statusFilter: any = {};
   if (status === 'blocked') statusFilter['user.isBlocked'] = true;
   else if (status === 'unblocked') statusFilter['user.isBlocked'] = false;

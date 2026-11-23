@@ -2,21 +2,13 @@ import httpStatus from 'http-status';
 import mongoose from 'mongoose';
 import AppError from '../../error/appError';
 import { VenueOwner } from './venue_owner.model';
+import { getPagination, getSearchTerm } from '../../utilities/listQuery';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const getAllVenueOwners = async (query: Record<string, unknown>) => {
-  const page = Number(query.page) || 1;
-  const limit = Number(query.limit) || 10;
-  const skip = (page - 1) * limit;
-  const searchTerm = query.searchTerm || '';
+  const { page, limit, skip } = getPagination(query);
+  const searchTerm = getSearchTerm(query);
   const status = query.status;
-
-  const filters: any = {};
-  Object.keys(query).forEach((key) => {
-    if (!['searchTerm', 'page', 'limit', 'status'].includes(key)) {
-      filters[key] = query[key];
-    }
-  });
 
   // Status filter for blocked/unblocked users
   const statusFilter: any = {};
@@ -37,8 +29,6 @@ const getAllVenueOwners = async (query: Record<string, unknown>) => {
     : {};
 
   const pipeline: any[] = [
-    { $match: filters },
-
     // Lookup user info
     {
       $lookup: {

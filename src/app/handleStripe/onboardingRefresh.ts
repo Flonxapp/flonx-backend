@@ -1,26 +1,37 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import httpStatus from 'http-status';
-import config from '../config';
 import AppError from '../error/appError';
-import stripe from '../utilities/stripe';
+import { VenueOwner } from '../modules/venue_owner/venue_owner.model';
+import {
+  createOnboardingLink,
+  isValidOnboardingSignature,
+} from '../utilities/onboardingLink';
 
-const onboardingRefresh = async (req: Request, res: Response) => {
+// Stripe sends the browser here when an onboarding link has expired.
+const onboardingRefresh = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const { accountId } = req.query;
-
-    if (!accountId) {
-      return res.status(400).send('Missing accountId');
+    const { accountId, sig } = req.query;
+    if (typeof accountId !== 'string' || typeof sig !== 'string') {
+      return res.status(httpStatus.BAD_REQUEST).send('Invalid link');
     }
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId as string,
-      refresh_url: `${config.stripe.onboarding_refresh_url}?accountId=${accountId}`,
-      return_url: config.stripe.onboarding_refresh_url,
-      type: 'account_onboarding',
-    });
-
-    res.redirect(accountLink.url);
-  } catch (error) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Update onboarding link failed');
+    if (!isValidOnboardingSignature(accountId, sig)) {
+      return res.status(httpStatus.FORBIDDEN).send('Invalid link');
+    }
+    const owner = await VenueOwner.findOne({
+      stripeConnectedAccountId: accountId,
+    }).select('_id');
+    if (!owner) {
+      return res.status(httpStatus.NOT_FOUND).send('Account not found');
+    }
+    return res.redirect(await createOnboardingLink(accountId));
+  } catch {
+    return next(
+      new AppError(httpStatus.BAD_REQUEST, 'Update onboarding link failed'),
+    );
   }
 };
 

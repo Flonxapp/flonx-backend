@@ -35,21 +35,30 @@ const generateOrderCode = () => {
 // always find it (a saved card can be charged before this function returns).
 const createOrder = async (customerId: string, paymentMethodId?: string) => {
   const cart: any = await Cart.findOne({ customer: customerId })
-    .populate('items.product', 'name isAvailable')
+    .populate('items.product', 'name isAvailable isDeleted price')
     .populate('customer', 'name email stripeCustomerId');
 
   if (!cart || cart.items.length === 0) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Cart is empty');
   }
 
+  let pricesChanged = false;
   cart.items.forEach((item: any) => {
-    if (!item.product?.isAvailable) {
+    if (!item.product?.isAvailable || item.product?.isDeleted) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
         `${item.product?.name || 'A product'} is not available right now, please remove it from cart to proceed`,
       );
     }
+    // charge the current price, not the price when the item was added
+    if (item.price !== item.product.price) {
+      item.price = item.product.price;
+      pricesChanged = true;
+    }
   });
+  if (pricesChanged) {
+    await cart.save(); // pre('save') recalculates subTotal / totalPrice
+  }
 
   const openOrders = await Order.countDocuments({
     venue: cart.venue,
@@ -390,6 +399,27 @@ const changeOrderStatus = async (
     );
   }
 
+  // Status only moves forward: QUEUED -> IN_PROGRESS -> READY_FOR_PIC -> PICKED.
+  // Bartenders may skip steps; customers may only confirm pickup of a
+  // ready order.
+  const STATUS_ORDER = [
+    ENUM_ORDER_STATUS.QUEUED,
+    ENUM_ORDER_STATUS.IN_PROGRESS,
+    ENUM_ORDER_STATUS.READY_FOR_PIC,
+    ENUM_ORDER_STATUS.PICKED,
+  ];
+  const isForward =
+    STATUS_ORDER.indexOf(status) > STATUS_ORDER.indexOf(order.status);
+  if (
+    !isForward ||
+    (isCustomer && order.status !== ENUM_ORDER_STATUS.READY_FOR_PIC)
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Order can not move from ${order.status} to ${status}`,
+    );
+  }
+
   // only if the status hasn't changed meanwhile
   const result = await Order.findOneAndUpdate(
     { _id: orderId, status: order.status },
@@ -443,6 +473,15 @@ const tipToBartender = async (
     throw new AppError(
       httpStatus.NOT_FOUND,
       'Order not found or access denied',
+    );
+  }
+  if (
+    order.status === ENUM_ORDER_STATUS.PENDING ||
+    order.status === ENUM_ORDER_STATUS.CANCELLED
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'You can only tip on a paid order that is not cancelled',
     );
   }
   const amountInCents = Math.round(amount * 100);

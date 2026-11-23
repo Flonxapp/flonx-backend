@@ -9,21 +9,30 @@ const locationSchema = z.object({
 });
 const registerUserValidationSchema = z.object({
   body: z.object({
-    name: z.string({
-      required_error: 'Name is required',
-      invalid_type_error: 'Name must be a string',
-    }),
-    email: z.string({
-      required_error: 'Email is required',
-      invalid_type_error: 'Email must be a string',
-    }),
+    name: z
+      .string({ invalid_type_error: 'Name must be a string' })
+      .max(100)
+      .optional(),
+    email: z
+      .string({
+        required_error: 'Email is required',
+        invalid_type_error: 'Email must be a string',
+      })
+      .email('Invalid email address'),
     address: z.string({ required_error: 'Address is required' }).optional(),
     location: locationSchema.optional(),
-    password: z.string({ required_error: 'Password is required' }),
-    confirmPassword: z.string({
-      required_error: 'Confirm password is required',
-    }),
-    role: z.nativeEnum(USER_ROLE),
+    password: z
+      .string({ required_error: 'Password is required' })
+      .min(6, 'Password must be at least 6 characters')
+      .max(128),
+    confirmPassword: z.string().optional(),
+    // public sign-up can never create a superAdmin
+    role: z.enum(
+      [USER_ROLE.customer, USER_ROLE.bartender, USER_ROLE.venueOwner],
+      {
+        errorMap: () => ({ message: 'Invalid role' }),
+      },
+    ),
     skills: z.array(z.string()).optional(),
   }),
 });

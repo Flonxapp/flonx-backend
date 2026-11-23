@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-unused-vars */
 
+import bcrypt from 'bcrypt';
 import httpStatus from 'http-status';
 import { JwtPayload } from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import config from '../../config';
 import AppError from '../../error/appError';
 import { registrationSuccessEmailBody } from '../../mailTemplate/registerSucessEmail';
-import sendEmail from '../../utilities/sendEmail';
+import { sendEmailInBackground } from '../../utilities/sendEmail';
 import { IBartender } from '../bartender/bartender.interface';
 import { Bartender } from '../bartender/bartender.model';
 import { ICustomer } from '../Customer/customer.interface';
@@ -18,6 +19,8 @@ import { Shift } from '../shift/shift.model';
 import SuperAdmin from '../superAdmin/superAdmin.model';
 import { IVenue } from '../venue/venue.interface';
 import { VenueOwner } from '../venue_owner/venue_owner.model';
+import { WithdrawRequest } from '../withdraw_request/withdraw_request.model';
+import { ENUM_WITHDRAW_STATUS } from '../withdraw_request/withdraw_request.enum';
 import { USER_ROLE } from './user.constant';
 import { TUser, TUserRole } from './user.interface';
 import { User } from './user.model';
@@ -109,7 +112,11 @@ const registerUser = async (
   payload: TUser &
     ICustomer &
     IVenue &
-    IBartender & { playerId: string; platform: string },
+    IBartender & {
+      playerId: string;
+      platform: string;
+      confirmPassword?: string;
+    },
 ) => {
   const { email, password, role } = payload;
 
@@ -128,6 +135,23 @@ const registerUser = async (
   if (existingUser && existingUser.isVerified) {
     throw new AppError(httpStatus.BAD_REQUEST, 'This email already exists');
   }
+  if (
+    payload.confirmPassword !== undefined &&
+    payload.confirmPassword !== password
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Password and confirm password doesn't match",
+    );
+  }
+  // An unverified account keeps its role: its profile document was created
+  // for that role, and letting a re-register change it allowed role takeover.
+  if (existingUser && existingUser.role !== role) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `This email is already registered as ${existingUser.role}. Please verify it or use another email.`,
+    );
+  }
 
   const session = await mongoose.startSession();
 
@@ -142,8 +166,11 @@ const registerUser = async (
       user = await User.findByIdAndUpdate(
         existingUser._id,
         {
-          password,
-          role,
+          // findByIdAndUpdate skips the pre('save') hook, so hash here
+          password: await bcrypt.hash(
+            password,
+            Number(config.bcrypt_salt_rounds),
+          ),
           verifyCode,
           codeExpireIn,
           otpAttempts: 0,
@@ -203,7 +230,7 @@ const registerUser = async (
     await session.commitTransaction();
     session.endSession();
 
-    sendEmail({
+    sendEmailInBackground({
       email,
       subject: 'Activate Your Account',
       html: registrationSuccessEmailBody(payload.name, verifyCode),
@@ -272,7 +299,7 @@ const resendVerifyCode = async (email: string) => {
       'Something went wrong . Please again resend the code after a few second',
     );
   }
-  sendEmail({
+  sendEmailInBackground({
     email: user.email,
     subject: 'Activate Your Account',
     html: registrationSuccessEmailBody('Dear', updateUser.verifyCode),
@@ -349,11 +376,32 @@ const deleteAccount = async (userData: JwtPayload, password: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Account not found');
   }
 
+  // Accounts with a password must confirm it. Guests and Google/Apple
+  // accounts have no password; the valid login token is enough for them
+  // (app stores require in-app deletion for every account type).
   if (
-    !user.password ||
+    user.password &&
     !(await User.isPasswordMatched(password, user.password))
   ) {
     throw new AppError(httpStatus.FORBIDDEN, 'Password does not match');
+  }
+
+  if (userData.role === USER_ROLE.venueOwner) {
+    const [owner, openWithdraw] = await Promise.all([
+      VenueOwner.findById(userData.profileId).select('currentBalance'),
+      WithdrawRequest.exists({
+        venueOwner: userData.profileId,
+        status: {
+          $in: [ENUM_WITHDRAW_STATUS.PENDING, ENUM_WITHDRAW_STATUS.PROCESSING],
+        },
+      }),
+    ]);
+    if ((owner?.currentBalance ?? 0) > 0 || openWithdraw) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'Please withdraw your remaining balance before deleting your account',
+      );
+    }
   }
 
   const hasActiveShift = await Shift.exists({

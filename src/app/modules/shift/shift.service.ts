@@ -1,3 +1,4 @@
+import { escapeRegex } from '../../builder/queryBuilder.utils';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import httpStatus from 'http-status';
 import { JwtPayload } from 'jsonwebtoken';
@@ -156,7 +157,9 @@ const getMyShifts = async (
     }
   });
 
-  const searchTerm = query?.searchTerm as string;
+  const searchTerm = query?.searchTerm
+    ? escapeRegex(String(query.searchTerm))
+    : '';
 
   const pipeline: any[] = [
     {
@@ -312,7 +315,22 @@ const getCurrentShift = async (bartenderId: string) => {
   return { currentShift, upcomingShift };
 };
 
-const getSingleShiftWithStats = async (shiftId: string) => {
+const getSingleShiftWithStats = async (shiftId: string, user: JwtPayload) => {
+  if (!mongoose.Types.ObjectId.isValid(shiftId)) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid shift id');
+  }
+  // only the shift's venue owner, its bartender, or an admin may view it
+  const shift = await Shift.findById(shiftId).select('venueOwner bartender');
+  if (!shift) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Shift not found');
+  }
+  const isParty =
+    String(shift.venueOwner) === String(user.profileId) ||
+    String(shift.bartender) === String(user.profileId);
+  if (user.role !== USER_ROLE.superAdmin && !isParty) {
+    throw new AppError(httpStatus.FORBIDDEN, 'You can not view this shift');
+  }
+
   const result = await Shift.aggregate([
     {
       $match: {

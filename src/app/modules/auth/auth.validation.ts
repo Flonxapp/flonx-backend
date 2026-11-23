@@ -9,9 +9,8 @@ const loginValidationSchema = z.object({
 
 const googleSignUpValidationSchema = z.object({
   body: z.object({
-    name: z.string({ required_error: 'Name is required' }),
-    email: z.string({ required_error: 'Email is required' }),
-    profile_image: z.string().optional(),
+    // ID token from Google Sign-In; verified server-side
+    idToken: z.string({ required_error: 'Google idToken is required' }).min(1),
   }),
 });
 
@@ -26,10 +25,11 @@ const changePasswordValidationSchema = z.object({
 });
 
 // refresh token validation schema -----------
+// refresh token may come in the JSON body (mobile / SPA) or a cookie
+// (presence is checked in the service)
 const refreshTokenValidationSchema = z.object({
-  cookies: z.object({
-    refreshToken: z.string({ required_error: 'Refresh token is required' }),
-  }),
+  body: z.object({ refreshToken: z.string().optional() }).optional(),
+  cookies: z.object({ refreshToken: z.string().optional() }).optional(),
 });
 
 // forget password validation schema

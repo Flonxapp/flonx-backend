@@ -4,6 +4,7 @@ import { JwtPayload } from 'jsonwebtoken';
 import config from '../../config';
 import AppError from '../../error/appError';
 import stripe from '../../utilities/stripe';
+import { createOnboardingLink } from '../../utilities/onboardingLink';
 import { VenueOwner } from '../venue_owner/venue_owner.model';
 import { errorLogger } from '../../shared/logger';
 
@@ -18,13 +19,7 @@ const createConnectedAccountAndOnboardingLink = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'Stripe is already connected');
   }
   if (venueOwner.stripeConnectedAccountId) {
-    const onboardingLink = await stripe.accountLinks.create({
-      account: venueOwner.stripeConnectedAccountId.toString(),
-      refresh_url: `${config.stripe.onboarding_refresh_url}?accountId=${venueOwner.stripeConnectedAccountId.toString()}`,
-      return_url: `${config.stripe.onboarding_return_url}`,
-      type: 'account_onboarding',
-    });
-    return onboardingLink.url;
+    return createOnboardingLink(venueOwner.stripeConnectedAccountId.toString());
   } else {
     const account = await stripe.accounts.create({
       type: 'express',
@@ -53,13 +48,7 @@ const createConnectedAccountAndOnboardingLink = async (
         'Unable to add account id in reviewer data',
       );
     }
-    const onboardingLink = await stripe.accountLinks.create({
-      account: account.id,
-      refresh_url: `${config.stripe.onboarding_refresh_url}?accountId=${account?.id}`,
-      return_url: `${config.stripe.onboarding_return_url}`,
-      type: 'account_onboarding',
-    });
-    return onboardingLink.url;
+    return createOnboardingLink(account.id);
   }
 };
 
@@ -68,14 +57,14 @@ const updateOnboardingLink = async (userData: JwtPayload) => {
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'Venue owner not found');
   }
-  const accountLink = await stripe.accountLinks.create({
-    account: user.stripeConnectedAccountId.toString(),
-    refresh_url: `${config.stripe.onboarding_refresh_url}?accountId=${user.stripeConnectedAccountId}`,
-    return_url: config.stripe.onboarding_return_url,
-    type: 'account_onboarding',
-  });
-
-  return { link: accountLink.url };
+  if (!user.stripeConnectedAccountId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'Stripe is not connected yet. Please connect Stripe first',
+    );
+  }
+  // returns the URL string, same shape as create-onboarding-link
+  return createOnboardingLink(user.stripeConnectedAccountId.toString());
 };
 
 const updateStripeConnectedAccountStatus = async (accountId: string) => {

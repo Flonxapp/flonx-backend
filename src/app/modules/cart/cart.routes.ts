@@ -10,7 +10,7 @@ const router = express.Router();
 router.post(
   '/add-to-cart',
   auth(USER_ROLE.customer),
-  // validateRequest(cartValidations.addToCartValidationSchema),
+  validateRequest(cartValidations.addToCartValidationSchema),
   cartControllers.addToCart,
 );
 router.patch(

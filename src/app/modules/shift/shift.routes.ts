@@ -33,7 +33,7 @@ router.get(
 
 router.get(
   '/single-shift/:id',
-  // auth(USER_ROLE.bartender, USER_ROLE.venueOwner),
+  auth(USER_ROLE.bartender, USER_ROLE.venueOwner, USER_ROLE.superAdmin),
   ShiftRequestController.getSingleShift,
 );
 

@@ -23,5 +23,9 @@ router.patch(
   SupportController.updateStatus,
 );
 
-router.get('/get-single/:id', SupportController.getSingle);
+router.get(
+  '/get-single/:id',
+  auth(USER_ROLE.superAdmin),
+  SupportController.getSingle,
+);
 export const supportRoutes = router;

@@ -98,7 +98,9 @@ const userSchema = new Schema<TUser>(
 userSchema.pre('save', async function (next) {
   // eslint-disable-next-line @typescript-eslint/no-this-alias
   const user = this;
-  if (user.password) {
+  // hash only when the password was set or changed; re-hashing an existing
+  // hash on every save would lock the user out
+  if (user.isModified('password') && user.password) {
     user.password = await bcrypt.hash(
       user.password,
       Number(config.bcrypt_salt_rounds),

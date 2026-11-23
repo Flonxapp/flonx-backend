@@ -18,13 +18,9 @@ const logDir = path.join(process.cwd(), 'logs', 'winston');
 
 export const logger = createLogger({
   level: 'info',
-  format: combine(label({ label: 'Simpli Backend' }), timestamp(), myFormat),
+  format: combine(label({ label: 'Flonx API' }), timestamp(), myFormat),
   transports: [
     new transports.Console(),
-    new transports.File({
-      level: 'info',
-      filename: path.join(logDir, 'successes', 'um-success.log'),
-    }),
 
     new DailyRotateFile({
       level: 'info',
@@ -39,7 +35,7 @@ export const logger = createLogger({
 
 export const errorLogger = createLogger({
   level: 'error',
-  format: combine(label({ label: 'Simpli Backend' }), timestamp(), myFormat),
+  format: combine(label({ label: 'Flonx API' }), timestamp(), myFormat),
   transports: [
     new transports.Console(),
     new DailyRotateFile({

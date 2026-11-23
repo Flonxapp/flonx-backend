@@ -16,3 +16,11 @@ export const tipToBartenderValidation = z.object({
       .max(1000, { message: 'Amount exceeds the maximum allowed tip' }),
   }),
 });
+
+export const changeOrderStatusValidation = z.object({
+  body: z.object({
+    status: z.enum(['IN_PROGRESS', 'READY_FOR_PIC', 'PICKED', 'CANCELLED'], {
+      errorMap: () => ({ message: 'Invalid order status' }),
+    }),
+  }),
+});

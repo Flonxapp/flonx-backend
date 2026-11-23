@@ -40,6 +40,13 @@ export default {
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
   base_url: process.env.BASE_URL,
   default_pass: process.env.DEFAULT_PASS,
+  // Google OAuth client IDs (web, iOS, Android) accepted as ID-token audience
+  google_client_ids: [
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.WEB_CLIENT_ID,
+    process.env.GOOGLE_IOS_CLIENT_ID,
+    process.env.GOOGLE_ANDROID_CLIENT_ID,
+  ].filter((v): v is string => !!v),
   jwt_access_secret: process.env.JWT_ACCESS_SECRET,
   jwt_refresh_secret: process.env.JWT_REFRESH_SECRET,
   jwt_access_expires_in: process.env.JWT_ACCESS_EXPIRES_IN,
@@ -102,6 +109,8 @@ export default {
     smtp_service: process.env.SMTP_SERVICE,
     smtp_mail: process.env.SMTP_MAIL,
     smtp_pass: process.env.SMTP_PASS,
+    // where contact-us form messages are delivered (defaults to SMTP_MAIL)
+    contact_us_email: process.env.CONTACT_US_EMAIL,
     name: process.env.SERVICE_NAME,
   },
   resend: {

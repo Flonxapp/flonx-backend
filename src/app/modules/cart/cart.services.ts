@@ -16,8 +16,14 @@ const addToCart = async ({
   quantity,
 }: addToCartProps) => {
   const product = await Product.findById(productId);
-  if (!product) {
+  if (!product || product.isDeleted) {
     throw new AppError(httpStatus.NOT_FOUND, 'Product not found');
+  }
+  if (!product.isAvailable) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This product is not available right now',
+    );
   }
   let cart = await Cart.findOne({ customer: customerId });
 
@@ -46,15 +52,14 @@ const addToCart = async ({
   if (existingItem) {
     existingItem.quantity += quantity;
   } else {
-    const product = await Product.findById(productId).select('price');
-    const price = product?.price;
-
-    // Add new item to the cart
     cart.items.push({
       product: productId,
       quantity,
-      price: price as number,
+      price: product.price,
     });
+  }
+  if (existingItem && existingItem.quantity > 99) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Quantity is too large');
   }
 
   await cart.save();

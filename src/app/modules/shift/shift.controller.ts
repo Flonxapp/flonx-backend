@@ -39,6 +39,7 @@ const getCurrentShift = catchAsync(async (req, res) => {
 const getSingleShift = catchAsync(async (req, res) => {
   const result = await ShiftRequestService.getSingleShiftWithStats(
     req.params.id,
+    req.user,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

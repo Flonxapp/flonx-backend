@@ -1,3 +1,4 @@
+import { escapeRegex } from '../../builder/queryBuilder.utils';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import httpStatus from 'http-status';
 import mongoose from 'mongoose';
@@ -65,7 +66,7 @@ const getVenueProducts = async (
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
-  const searchTerm = query.searchTerm || '';
+  const searchTerm = escapeRegex(String(query.searchTerm || ''));
   const filters: any = {};
   if (query.category) {
     filters.category = new mongoose.Types.ObjectId(query.category as string);

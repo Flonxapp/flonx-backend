@@ -30,4 +30,8 @@ const ratingSchema = new Schema<IRating>(
   },
 );
 
+// one rating per customer, bartender and job
+ratingSchema.index({ customer: 1, bartender: 1, job: 1 }, { unique: true });
+ratingSchema.index({ bartender: 1 });
+
 export const Rating = model<IRating>('Rating', ratingSchema);

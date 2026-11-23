@@ -1,3 +1,4 @@
+import { escapeRegex } from '../../builder/queryBuilder.utils';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import httpStatus from 'http-status';
 import { JwtPayload } from 'jsonwebtoken';
@@ -88,7 +89,7 @@ const getAllJobsFromDB = async (query: Record<string, unknown>) => {
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  const searchTerm = query.searchTerm || '';
+  const searchTerm = escapeRegex(String(query.searchTerm || ''));
   const lat = Number(query.lat);
   const lng = Number(query.lng);
   const maxDistance = Number(query.maxDistance) * 1000 || 5000;
@@ -545,7 +546,7 @@ const getMyJobs = async (
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const searchTerm = (query.searchTerm as string) || '';
+    const searchTerm = escapeRegex(String(query.searchTerm || ''));
     const lat = Number(query.lat);
     const lng = Number(query.lng);
     const maxDistance = Number(query.maxDistance)
@@ -715,7 +716,7 @@ const getMyJobs = async (
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const searchTerm = (query.searchTerm as string) || '';
+    const searchTerm = escapeRegex(String(query.searchTerm || ''));
     const lat = Number(query.lat);
     const lng = Number(query.lng);
     const maxDistance = Number(query.maxDistance)

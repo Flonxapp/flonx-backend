@@ -4,6 +4,7 @@
 /* eslint-disable prefer-const */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import cookieParser from 'cookie-parser';
+import sanitizeInput from './app/middlewares/sanitizeInput';
 import cors from 'cors';
 import express, { Application } from 'express';
 import helmet from 'helmet';
@@ -49,6 +50,7 @@ app.post(
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
+app.use(sanitizeInput);
 app.use(helmet());
 
 app.use(cors({ origin: config.cors_origins, credentials: true }));

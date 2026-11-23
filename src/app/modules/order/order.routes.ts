@@ -6,6 +6,7 @@ import OrderController from './order.controller';
 import {
   cancelOrderValidation,
   tipToBartenderValidation,
+  changeOrderStatusValidation,
 } from './order.validation';
 
 const router = express.Router();
@@ -47,6 +48,7 @@ router.patch(
 router.patch(
   '/update-status/:id',
   auth(USER_ROLE.customer, USER_ROLE.bartender),
+  validateRequest(changeOrderStatusValidation),
   OrderController.changeStatus,
 );
 

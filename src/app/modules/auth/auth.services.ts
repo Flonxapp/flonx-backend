@@ -7,16 +7,17 @@ import config from '../../config';
 import AppError from '../../error/appError';
 import changeEmailVerificationBody from '../../mailTemplate/changeEmailVerificationBody';
 import { resetPasswordEmailBody } from '../../mailTemplate/resetPasswordEmailBody';
-import sendEmail from '../../utilities/sendEmail';
+import { sendEmailInBackground } from '../../utilities/sendEmail';
 import { Customer } from '../Customer/customer.model';
 import { Device } from '../device/device.model';
 import { upsertDevice } from '../device/device.service';
 import { USER_ROLE } from '../user/user.constant';
-import { ILoginWithGoogle, TUser, TUserRole } from '../user/user.interface';
+import { TUserRole } from '../user/user.interface';
 import { User } from '../user/user.model';
 import { createToken, verifyToken } from '../user/user.utils';
 import { Buffer } from 'buffer';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { checkOtp, generateOtp } from '../../utilities/otp';
 import { TLoginUser } from './auth.interface';
 
@@ -80,89 +81,124 @@ const loginUserIntoDB = async (payload: TLoginUser) => {
   };
 };
 
-const loginWithGoogle = async (payload: ILoginWithGoogle) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+// Google sign-in: the client sends the Google ID token it received from
+// Google Sign-In; we verify it with Google (signature, expiry, audience)
+// and trust only the email inside it. Never trust an email sent in the body.
+const googleClient = new OAuth2Client();
 
+const loginWithGoogle = async (payload: { idToken: string }) => {
+  if (!config.google_client_ids.length) {
+    throw new AppError(
+      httpStatus.SERVICE_UNAVAILABLE,
+      'Google login is not configured',
+    );
+  }
+
+  let googleUser: TokenPayload | undefined;
   try {
-    // Check if the user already exists
-    const isExistUser = await User.findOne(
-      { email: payload.email },
-      { isVerified: true },
-    ).session(session);
+    const ticket = await googleClient.verifyIdToken({
+      idToken: payload.idToken,
+      audience: config.google_client_ids,
+    });
+    googleUser = ticket.getPayload();
+  } catch {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'Invalid Google token');
+  }
+  if (!googleUser?.email || !googleUser.email_verified) {
+    throw new AppError(
+      httpStatus.UNAUTHORIZED,
+      'Google account email is not verified',
+    );
+  }
+  const email = googleUser.email.toLowerCase();
 
-    // If user exists, create JWT and return tokens
-    if (isExistUser) {
-      const jwtPayload = {
-        id: isExistUser._id,
-        profileId: isExistUser.profileId,
-        email: isExistUser.email,
-        role: isExistUser.role as TUserRole,
-      };
-
-      const accessToken = createToken(
+  const issueTokens = (user: {
+    _id: unknown;
+    profileId?: unknown;
+    email?: string;
+    role: string;
+  }) => {
+    const jwtPayload = {
+      id: String(user._id),
+      profileId: String(user.profileId),
+      email: user.email || '',
+      role: user.role as TUserRole,
+    };
+    return {
+      accessToken: createToken(
         jwtPayload,
         config.jwt_access_secret as string,
         config.jwt_access_expires_in as string,
-      );
-      const refreshToken = createToken(
+      ),
+      refreshToken: createToken(
         jwtPayload,
         config.jwt_refresh_secret as string,
         config.jwt_refresh_expires_in as string,
-      );
+      ),
+      role: user.role,
+    };
+  };
 
-      await session.commitTransaction();
-      session.endSession();
-      return { accessToken, refreshToken };
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    if (existingUser.isDeleted) {
+      throw new AppError(httpStatus.FORBIDDEN, 'This user is already deleted');
     }
+    if (existingUser.isBlocked) {
+      throw new AppError(httpStatus.FORBIDDEN, 'This user is blocked');
+    }
+    if (existingUser.role === USER_ROLE.superAdmin) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'Please login with email and password',
+      );
+    }
+    if (existingUser.googleId && existingUser.googleId !== googleUser.sub) {
+      throw new AppError(httpStatus.UNAUTHORIZED, 'Invalid Google account');
+    }
+    if (!existingUser.isVerified) {
+      // Google has proven ownership of this email
+      existingUser.isVerified = true;
+      await existingUser.save();
+    }
+    return issueTokens(existingUser);
+  }
 
-    // If user doesn't exist, create a new user
-    const userDataPayload: Partial<TUser> = {
-      email: payload.email,
-      phone: payload?.phone,
-      role: USER_ROLE.customer,
-    };
-
-    const createUser = await User.create([userDataPayload], { session });
-
-    const CustomerData = {
-      name: payload.name,
-      email: payload.email,
-      profile_image: payload.profile_image,
-      user: createUser[0]._id,
-    };
-
-    await Customer.create([CustomerData], {
-      session,
-    });
-
-    // Create JWT tokens
-    const jwtPayload = {
-      id: createUser[0]._id,
-      profileId: createUser[0].profileId,
-      email: createUser[0].email,
-      role: createUser[0].role as TUserRole,
-    };
-
-    const accessToken = createToken(
-      jwtPayload,
-      config.jwt_access_secret as string,
-      config.jwt_access_expires_in as string,
+  // New user: create a verified customer account
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const [createdUser] = await User.create(
+      [
+        {
+          email,
+          role: USER_ROLE.customer,
+          googleId: googleUser.sub,
+          isVerified: true,
+        },
+      ],
+      { session },
     );
-    const refreshToken = createToken(
-      jwtPayload,
-      config.jwt_refresh_secret as string,
-      config.jwt_refresh_expires_in as string,
+    const [customer] = await Customer.create(
+      [
+        {
+          name: googleUser.name || email.split('@')[0],
+          email,
+          profile_image: googleUser.picture,
+          user: createdUser._id,
+        },
+      ],
+      { session },
     );
-
+    createdUser.profileId = customer._id as never;
+    await createdUser.save({ session });
     await session.commitTransaction();
-    session.endSession();
-
-    return { accessToken, refreshToken };
+    return issueTokens(createdUser);
   } catch (error) {
     await session.abortTransaction();
-    session.endSession();
     throw error;
+  } finally {
+    session.endSession();
   }
 };
 
@@ -213,14 +249,20 @@ const changePasswordIntoDB = async (
   return null;
 };
 
-const refreshToken = async (token: string) => {
-  const decoded = verifyToken(token, config.jwt_refresh_secret as string);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { username, email, iat } = decoded;
+const refreshToken = async (token: string | undefined) => {
+  if (!token) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Refresh token is required');
+  }
+  let decoded;
+  try {
+    decoded = verifyToken(token, config.jwt_refresh_secret as string);
+  } catch {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'Invalid refresh token');
+  }
+  const { id, iat } = decoded;
 
-  const user = await User.findOne({
-    $or: [{ email: email }, { username: username }],
-  });
+  // look up by id: guests all share an empty email
+  const user = id ? await User.findById(id) : null;
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'This user does not exist');
   }
@@ -230,20 +272,18 @@ const refreshToken = async (token: string) => {
   if (user.isBlocked) {
     throw new AppError(httpStatus.FORBIDDEN, 'This user is blocked');
   }
-  // if (
-  //   user?.passwordChangedAt &&
-  //   (await User.isJWTIssuedBeforePasswordChange(
-  //     user?.passwordChangedAt,
-  //     iat as number,
-  //   ))
-  // ) {
-  //   throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized');
-  // }
+  if (
+    user.passwordChangedAt &&
+    iat &&
+    (await User.isJWTIssuedBeforePasswordChange(user.passwordChangedAt, iat))
+  ) {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'Please login again');
+  }
   const jwtPayload = {
-    id: user?._id,
-    profileId: user?.profileId,
-    email: user?.email,
-    role: user?.role as TUserRole,
+    id: user._id,
+    profileId: user.profileId,
+    email: user.email,
+    role: user.role as TUserRole,
   };
   const accessToken = createToken(
     jwtPayload,
@@ -277,7 +317,7 @@ const forgetPassword = async (email: string) => {
     },
   );
 
-  sendEmail({
+  sendEmailInBackground({
     email: user.email,
     subject: 'Reset password code',
     html: resetPasswordEmailBody('Dear', resetCode),
@@ -395,7 +435,7 @@ const resendResetCode = async (email: string) => {
       otpAttempts: 0,
     },
   );
-  sendEmail({
+  sendEmailInBackground({
     email: user.email,
     subject: 'Reset password code',
     html: resetPasswordEmailBody('Dear', resetCode),
@@ -426,7 +466,7 @@ const resendVerifyCode = async (email: string) => {
       otpAttempts: 0,
     },
   );
-  sendEmail({
+  sendEmailInBackground({
     email: user.email,
     subject: 'Reset password code',
     html: resetPasswordEmailBody('Dear', verifyCode),
@@ -453,7 +493,7 @@ const changeEmail = async (
     codeExpireIn: new Date(Date.now() + 2 * 60000),
     otpAttempts: 0,
   });
-  sendEmail({
+  sendEmailInBackground({
     email: payload.email,
     subject: 'Email Change Verification Code',
     html: changeEmailVerificationBody('Dear', code),

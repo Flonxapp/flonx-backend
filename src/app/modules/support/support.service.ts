@@ -1,3 +1,4 @@
+import { escapeRegex } from '../../builder/queryBuilder.utils';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { JwtPayload } from 'jsonwebtoken';
 import AppError from '../../error/appError';
@@ -28,7 +29,7 @@ const getAllSupport = async (query: Record<string, unknown>) => {
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
-  const searchTerm = (query.searchTerm as string) || '';
+  const searchTerm = escapeRegex(String(query.searchTerm || ''));
 
   const filters: Record<string, unknown> = {};
   Object.keys(query).forEach((key) => {

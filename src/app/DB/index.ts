@@ -18,6 +18,17 @@ const seedSuperAdmin = async () => {
     logger.info('Admin already exits');
     return;
   }
+  // never create an admin without credentials or with a weak password
+  if (
+    !config.super_admin_email ||
+    !config.super_admin_password ||
+    config.super_admin_password.length < 12
+  ) {
+    logger.warn(
+      'Super admin not created: set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD (12+ characters)',
+    );
+    return;
+  }
   const session = await mongoose.startSession();
   session.startTransaction();
 

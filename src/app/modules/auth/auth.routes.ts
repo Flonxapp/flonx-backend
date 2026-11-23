@@ -32,9 +32,11 @@ router.post(
   validateRequest(authValidations.changePasswordValidationSchema),
   authControllers.changePassword,
 );
+// No access-token auth here: this is called exactly when the access token
+// has expired. The refresh token itself is verified in the service.
 router.post(
   '/refresh-token',
-  auth(USER_ROLE.bartender, USER_ROLE.customer, USER_ROLE.superAdmin),
+  authLimiter,
   validateRequest(authValidations.refreshTokenValidationSchema),
   authControllers.refreshToken,
 );
@@ -69,9 +71,18 @@ router.post(
   '/resend-verify-code',
   otpLimiter,
   validateRequest(authValidations.resendResetCodeValidationSchema),
-  authControllers.resendResetCode,
+  authControllers.resendVerifyCode,
 );
 
-router.post('/guest', authControllers.guestAuth);
-router.post('/logout', authControllers.logout);
+router.post('/guest', authLimiter, authControllers.guestAuth);
+router.post(
+  '/logout',
+  auth(
+    USER_ROLE.bartender,
+    USER_ROLE.customer,
+    USER_ROLE.superAdmin,
+    USER_ROLE.venueOwner,
+  ),
+  authControllers.logout,
+);
 export const authRoutes = router;

@@ -2,20 +2,17 @@ import mongoose from 'mongoose';
 import AppError from '../../error/appError';
 import stripe from '../../utilities/stripe';
 import { Customer } from './customer.model';
+import { getPagination, getSearchTerm } from '../../utilities/listQuery';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const getAllCustomers = async (query: Record<string, unknown>) => {
-  const page = Number(query.page) || 1;
-  const limit = Number(query.limit) || 10;
-  const skip = (page - 1) * limit;
-  const searchTerm = query.searchTerm || '';
+  const { page, limit, skip } = getPagination(query);
+  const searchTerm = getSearchTerm(query);
 
+  // Only known filters; never copy raw query keys into $match.
   const filters: any = {};
-  Object.keys(query).forEach((key) => {
-    if (!['searchTerm', 'page', 'limit'].includes(key)) {
-      filters[key] = query[key];
-    }
-  });
+  if (query.status === 'blocked') filters['user.isBlocked'] = true;
+  else if (query.status === 'unblocked') filters['user.isBlocked'] = false;
 
   // Search stage
   const searchMatchStage = searchTerm
@@ -31,8 +28,6 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     : {};
 
   const pipeline: any[] = [
-    { $match: filters },
-
     // Lookup user info
     {
       $lookup: {
@@ -44,8 +39,8 @@ const getAllCustomers = async (query: Record<string, unknown>) => {
     },
     { $unwind: '$user' },
 
-    // Apply search after lookup
-    { $match: searchMatchStage },
+    // Apply search and status filter after lookup
+    { $match: { ...searchMatchStage, ...filters } },
 
     // Optional: You could add ratings aggregation here if you have Customer ratings
 

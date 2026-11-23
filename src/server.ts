@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import server from './app';
 import config from './app/config';
 import seedSuperAdmin from './app/DB';
+import validateEnv from './app/config/validateEnv';
 import { startJobs } from './app/jobs';
 import { errorLogger, logger } from './app/shared/logger';
 import { getIO, initializeSocket } from './app/socket/socket';
@@ -38,6 +39,7 @@ const shutdown = async (reason: string, exitCode = 0) => {
 };
 
 async function main() {
+  validateEnv();
   await mongoose.connect(config.database_url as string);
   logger.info('DB Connected Successfully');
 
@@ -45,7 +47,9 @@ async function main() {
   const host = (config.base_url as string) || '0.0.0.0';
   httpServer = server.listen(port, host, () => {
     logger.info(`Server listening on http://${host}:${port}`);
-    seedSuperAdmin();
+    seedSuperAdmin().catch((error) =>
+      errorLogger.error('Seeding super admin failed', error),
+    );
   });
   initializeSocket(httpServer);
   startJobs();
