@@ -9,7 +9,6 @@ const createOrder = catchAsync(async (req, res) => {
     req.body.paymentMethodId,
   );
 
-  console.log('Order created with result:', result);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -52,11 +51,27 @@ const getSingleOrder = catchAsync(async (req, res) => {
 });
 
 const markAsUnavailableAndRefund = catchAsync(async (req, res) => {
-  const result = await OrderService.markAsUnavailableAndRefund(req.params.id);
+  const result = await OrderService.markAsUnavailableAndRefund(
+    req.user,
+    req.params.id,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Order cancelled and refund initiated successfully',
+    data: result,
+  });
+});
+const cancelOrder = catchAsync(async (req, res) => {
+  const result = await OrderService.cancelOrder(
+    req.user,
+    req.params.id,
+    req.body?.reason,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Order cancelled. The payment is being refunded to your card.',
     data: result,
   });
 });
@@ -94,6 +109,7 @@ const OrderController = {
   getAllOrder,
   getSingleOrder,
   markAsUnavailableAndRefund,
+  cancelOrder,
   changeStatus,
   tipToBartender,
 };

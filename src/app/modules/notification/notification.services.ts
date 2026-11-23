@@ -49,7 +49,6 @@ const getAllNotificationFromDB = async (
 const seeNotification = async (user: JwtPayload) => {
   let result;
 
-  console.log('User Info:', user); // Debug log
   if (user?.role === USER_ROLE.superAdmin) {
     result = await Notification.updateMany(
       { receiver: USER_ROLE.superAdmin },

@@ -23,16 +23,6 @@ const updateOnboardingLink = catchAsync(async (req, res) => {
     data: result,
   });
 });
-const withdrawMoney = catchAsync(async (req, res) => {
-  const result = await StripeService.withdrawMoney(req.user, req.body.amount);
-
-  sendResponse(res, {
-    statusCode: 201,
-    success: true,
-    message: 'With initiate successfully',
-    data: result,
-  });
-});
 const detachPaymentMethod = catchAsync(async (req, res) => {
   const result = await StripeService.detachPaymentMethod(
     req.body.paymentIntentId,
@@ -48,7 +38,6 @@ const detachPaymentMethod = catchAsync(async (req, res) => {
 const StripeController = {
   createOnboardingLink,
   updateOnboardingLink,
-  withdrawMoney,
   detachPaymentMethod,
 };
 

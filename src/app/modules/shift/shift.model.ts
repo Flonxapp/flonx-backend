@@ -46,4 +46,11 @@ const shiftRequestSchema = new Schema<IShift>(
   },
 );
 
+// active shift lookup on every order, overlap checks, and the status cron
+shiftRequestSchema.index({ venue: 1, status: 1, startDateTime: 1 });
+shiftRequestSchema.index({ bartender: 1, status: 1, startDateTime: 1 });
+shiftRequestSchema.index({ venueOwner: 1, status: 1, startDateTime: -1 });
+shiftRequestSchema.index({ status: 1, startDateTime: 1 });
+shiftRequestSchema.index({ status: 1, endDateTime: 1 });
+
 export const Shift = model<IShift>('Shift', shiftRequestSchema);

@@ -55,6 +55,14 @@ const userSchema = new Schema<TUser>(
     codeExpireIn: {
       type: Date,
     },
+    otpAttempts: {
+      type: Number,
+      default: 0,
+    },
+    guestSecretHash: {
+      type: String,
+      select: false,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
@@ -123,5 +131,14 @@ userSchema.statics.isJWTIssuedBeforePasswordChange = async function (
 
   return passwordChangeTime > jwtIssuedTimeStamp;
 };
+
+// one account per email; guests have no email so they are skipped
+userSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { email: { $type: 'string', $gt: '' } },
+  },
+);
 
 export const User = model<TUser, UserModel>('User', userSchema);

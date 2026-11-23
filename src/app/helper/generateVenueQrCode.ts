@@ -3,6 +3,7 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import QRCode from 'qrcode';
 import { getCloudFrontUrl, s3 } from '../aws/multer-s3-uploader';
 import config from '../config';
+import { errorLogger } from '../shared/logger';
 
 export const generateVenueQRCode = async (venueId: string): Promise<string> => {
   try {
@@ -23,7 +24,10 @@ export const generateVenueQRCode = async (venueId: string): Promise<string> => {
     const qrCloudFrontUrl = getCloudFrontUrl(s3Key);
     return qrCloudFrontUrl;
   } catch (err: any) {
-    console.error('Error generating/uploading QR code:', err.message || err);
+    errorLogger.error(
+      'Error generating/uploading QR code:',
+      err.message || err,
+    );
     throw new Error('Failed to generate QR code');
   }
 };

@@ -1,5 +1,9 @@
 import { Schema, model } from 'mongoose';
-import { ENUM_ORDER_STATUS } from './order.enum';
+import {
+  ENUM_ORDER_CANCELLED_BY,
+  ENUM_ORDER_STATUS,
+  ENUM_REFUND_STATUS,
+} from './order.enum';
 import { IOrder, IOrderItem } from './order.interface';
 
 const orderItemSchema = new Schema<IOrderItem>(
@@ -99,6 +103,11 @@ const orderSchema = new Schema<IOrder>(
       type: Number,
       default: null,
     },
+    // tips already credited, so a repeated webhook is ignored
+    tipPaymentIntentIds: {
+      type: [String],
+      default: [],
+    },
     orderCode: {
       type: String,
       required: true,
@@ -111,6 +120,20 @@ const orderSchema = new Schema<IOrder>(
       type: Boolean,
       default: false,
     },
+    cancelledBy: {
+      type: String,
+      enum: Object.values(ENUM_ORDER_CANCELLED_BY),
+    },
+    cancelledAt: { type: Date },
+    cancelReason: { type: String, trim: true, maxlength: 500 },
+    refundStatus: {
+      type: String,
+      enum: Object.values(ENUM_REFUND_STATUS),
+    },
+    stripeRefundId: { type: String },
+    refundedAmount: { type: Number },
+    refundAttempts: { type: Number, default: 0 },
+    refundError: { type: String },
   },
   {
     timestamps: true,
@@ -121,5 +144,10 @@ orderSchema.index({ customer: 1 });
 orderSchema.index({ venue: 1 });
 orderSchema.index({ bartender: 1 });
 orderSchema.index({ status: 1 });
+orderSchema.index({ venue: 1, status: 1 });
+orderSchema.index({ bartender: 1, status: 1, createdAt: -1 });
+orderSchema.index({ status: 1, createdAt: 1 });
+orderSchema.index({ status: 1, refundStatus: 1 });
+orderSchema.index({ stripeRefundId: 1 }, { sparse: true });
 
 export const Order = model<IOrder>('Order', orderSchema);

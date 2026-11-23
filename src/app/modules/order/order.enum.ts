@@ -6,3 +6,23 @@ export const ENUM_ORDER_STATUS = {
   PICKED: 'PICKED',
   CANCELLED: 'CANCELLED',
 };
+
+export const ENUM_ORDER_CANCELLED_BY = {
+  CUSTOMER: 'CUSTOMER',
+  BARTENDER: 'BARTENDER',
+} as const;
+
+export const ENUM_REFUND_STATUS = {
+  PENDING: 'PENDING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED', // retried automatically
+} as const;
+
+// customers can cancel only before the bartender starts on the order
+export const CUSTOMER_CANCELLABLE_STATUSES = [ENUM_ORDER_STATUS.QUEUED];
+export const BARTENDER_CANCELLABLE_STATUSES = [
+  ENUM_ORDER_STATUS.QUEUED,
+  ENUM_ORDER_STATUS.IN_PROGRESS,
+  ENUM_ORDER_STATUS.READY_FOR_PIC,
+];
+export const MAX_REFUND_ATTEMPTS = 5;

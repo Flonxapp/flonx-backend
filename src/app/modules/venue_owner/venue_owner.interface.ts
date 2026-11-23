@@ -11,6 +11,7 @@ export interface IVenueOwner {
   stripeConnectedAccountId: string;
   currentBalance: number;
   totalEarning: number;
+  totalWithdrawn: number;
   isDeleted: boolean;
   createdAt?: Date;
   updatedAt?: Date;

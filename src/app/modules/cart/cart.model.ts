@@ -68,5 +68,7 @@ CartSchema.pre<ICart>('save', function (next) {
   next();
 });
 
+CartSchema.index({ customer: 1 });
+
 const Cart = model<ICart>('Cart', CartSchema);
 export default Cart;

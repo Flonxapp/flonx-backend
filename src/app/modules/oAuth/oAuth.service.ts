@@ -231,7 +231,7 @@
 //     );
 //     return { accessToken, refreshToken, isNewUser, role: user.role };
 //   } catch (error: any) {
-//     console.error('OAuth login error:', error);
+//     errorLogger.error('OAuth login error:', error);
 
 //     if (error instanceof AppError) {
 //       throw error;
@@ -334,7 +334,7 @@
 //     await user.save();
 //     return user;
 //   } catch (error: any) {
-//     console.error('OAuth login error:', error);
+//     errorLogger.error('OAuth login error:', error);
 
 //     if (error instanceof AppError) {
 //       throw error;

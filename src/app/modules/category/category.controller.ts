@@ -7,7 +7,6 @@ import sendResponse from '../../utilities/sendResponse';
 import categoryService from './category.services';
 
 const createCategory = catchAsync(async (req, res) => {
-  console.log(req.user);
   const venueId = await getVenueIdForVenueOwner(req.user.profileId);
   if (!venueId) {
     throw new AppError(

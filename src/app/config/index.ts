@@ -2,8 +2,38 @@ import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
+const DEFAULT_CORS_ORIGINS = [
+  'https://flonxapp.com',
+  'https://admin.flonxapp.com',
+  'https://venue.flonxapp.com',
+  'https://bartender.flonxapp.com',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+];
+
+const list = (value: string | undefined, fallback: string[]) =>
+  value
+    ? value
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean)
+    : fallback;
+
 export default {
   NODE_ENV: process.env.NODE_ENV,
+  is_production: process.env.NODE_ENV === 'production',
+  // require the guestSecret on guest logins (see auth.services guestAuth)
+  guest_secret_enforced: process.env.GUEST_SECRET_ENFORCED !== 'false',
+  // comma separated; used by both the API and socket.io
+  cors_origins: list(process.env.CORS_ORIGINS, DEFAULT_CORS_ORIGINS),
+  // number of proxies in front of the app (nginx = 1)
+  trust_proxy: Number(process.env.TRUST_PROXY ?? 1),
+  rate_limit: {
+    api_per_minute: Number(process.env.RATE_LIMIT_PER_MINUTE ?? 300),
+    login_per_15_minutes: Number(process.env.LOGIN_LIMIT_PER_15_MIN ?? 10),
+    otp_per_15_minutes: Number(process.env.OTP_LIMIT_PER_15_MIN ?? 10),
+  },
   port: process.env.PORT,
   domain: process.env.DOMAIN,
   database_url: process.env.DATABASE_URL,
@@ -82,6 +112,26 @@ export default {
     api_key: process.env.SHIPPO_API_KEY,
   },
   app: {
-    max_concurrent_orders: process.env.MAX_CONCURRENT_ORDERS || 40,
+    // open (queued + in progress) orders allowed per venue
+    max_concurrent_orders: Number(process.env.MAX_CONCURRENT_ORDERS ?? 40),
+    // unpaid orders older than this are cancelled
+    pending_order_ttl_minutes: Number(
+      process.env.PENDING_ORDER_TTL_MINUTES ?? 30,
+    ),
+  },
+  wallet: {
+    // platform's % of each order
+    platform_fee_percentage: Number(process.env.PLATFORM_FEE_PERCENTAGE ?? 10),
+    // platform's % of each tip
+    tip_platform_fee_percentage: Number(
+      process.env.TIP_PLATFORM_FEE_PERCENTAGE ?? 0,
+    ),
+    min_withdraw_amount: Number(process.env.MIN_WITHDRAW_AMOUNT ?? 10),
+    // daily | weekly | monthly
+    connected_account_payout_interval: (process.env
+      .CONNECTED_ACCOUNT_PAYOUT_INTERVAL || 'daily') as
+      | 'daily'
+      | 'weekly'
+      | 'monthly',
   },
 };

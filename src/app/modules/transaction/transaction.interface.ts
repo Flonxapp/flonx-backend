@@ -1,19 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Types } from 'mongoose';
-import { TRANSACTION_STATUS, TRANSACTION_TYPE } from './transaction.enum';
+import {
+  TRANSACTION_DIRECTION,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from './transaction.enum';
 
 export interface ITransaction {
-  venueOwner?: Types.ObjectId;
-  customer?: Types.ObjectId;
-  order?: Types.ObjectId;
+  // neither set = platform record
+  venueOwner?: Types.ObjectId | null;
+  customer?: Types.ObjectId | null;
+  order?: Types.ObjectId | null;
 
   type: TRANSACTION_TYPE;
   status: TRANSACTION_STATUS;
+  direction: TRANSACTION_DIRECTION;
 
-  amount: number;
+  amount: number; // always positive, see direction
   currency: string;
 
-  // Stripe references
   stripePaymentIntentId?: string;
   stripeChargeId?: string;
   stripeTransferId?: string;

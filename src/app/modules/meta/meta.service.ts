@@ -406,7 +406,7 @@ const getActivities = async (query: Record<string, unknown>) => {
       },
     };
   } catch (err) {
-    console.error(err);
+    errorLogger.error(err);
   }
 };
 
@@ -451,6 +451,7 @@ const getVenueOwnerMetaData = async (venueOwnerId: string) => {
 };
 
 import mongoose from 'mongoose';
+import { errorLogger } from '../../shared/logger';
 
 const getVenueOwnerEarning = async (
   venueOwnerId: string,

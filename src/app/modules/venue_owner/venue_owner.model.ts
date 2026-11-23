@@ -40,6 +40,19 @@ const VenueOwnerSchema = new Schema<IVenueOwnerDocument>(
       type: String,
       default: '',
     },
+    // wallet (USD). Balance can go negative if an order is refunded after a withdrawal.
+    currentBalance: {
+      type: Number,
+      default: 0,
+    },
+    totalEarning: {
+      type: Number,
+      default: 0,
+    },
+    totalWithdrawn: {
+      type: Number,
+      default: 0,
+    },
     isDeleted: {
       type: Boolean,
       default: false,

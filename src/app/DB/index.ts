@@ -3,6 +3,7 @@ import config from '../config';
 import SuperAdmin from '../modules/superAdmin/superAdmin.model';
 import { USER_ROLE } from '../modules/user/user.constant';
 import { User } from '../modules/user/user.model';
+import { logger } from '../shared/logger';
 
 const superAdminData = {
   username: 'mradmin',
@@ -14,7 +15,7 @@ const seedSuperAdmin = async () => {
   // check when database is connected , we will check is there any user who is super admin
   const superAdminExits = await User.findOne({ role: USER_ROLE.superAdmin });
   if (superAdminExits) {
-    console.log('Admin already exits');
+    logger.info('Admin already exits');
     return;
   }
   const session = await mongoose.startSession();
@@ -44,7 +45,7 @@ const seedSuperAdmin = async () => {
     );
     await session.commitTransaction();
     session.endSession();
-    console.log('Super Admin Created Successfully');
+    logger.info('Super Admin Created Successfully');
     return result[0];
   } catch (error) {
     await session.abortTransaction();

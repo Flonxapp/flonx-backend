@@ -2,7 +2,6 @@
 import httpStatus from 'http-status';
 import { JwtPayload } from 'jsonwebtoken';
 import mongoose from 'mongoose';
-import cron from 'node-cron';
 import AppError from '../../error/appError';
 import { ENUM_ORDER_STATUS } from '../order/order.enum';
 import { USER_ROLE } from '../user/user.constant';
@@ -238,11 +237,6 @@ const acceptRejectShiftRequest = async (
   id: string,
   isAccept: boolean,
 ) => {
-  console.log('Shift Request ID:', id);
-  const shiftRequestIIIII = await Shift.findById(id)
-    .populate('venue')
-    .populate('bartender');
-  console.log('Shift Request Details:', shiftRequestIIIII);
   const shiftRequest = await Shift.findOne({
     bartender: bartenderId,
     _id: id,
@@ -474,44 +468,6 @@ const declineShift = async (id: string, venueOwnerId: string) => {
   const result = await Shift.findByIdAndDelete(id);
   return result;
 };
-// crone jobs -------------------------------------
-cron.schedule('* * * * *', async () => {
-  console.log('⏱ Running Shift Cron Job...');
-
-  try {
-    const now = new Date();
-
-    const activeResult = await Shift.updateMany(
-      {
-        status: ENUM_SHIFT_STATUS.Upcoming,
-        startDateTime: { $lte: now },
-      },
-      {
-        $set: { status: ENUM_SHIFT_STATUS.Active },
-      },
-    );
-
-    const completedResult = await Shift.updateMany(
-      {
-        status: ENUM_SHIFT_STATUS.Active,
-        endDateTime: { $lte: now },
-      },
-      {
-        $set: { status: ENUM_SHIFT_STATUS.Completed },
-      },
-    );
-
-    if (activeResult.modifiedCount > 0) {
-      console.log(`${activeResult.modifiedCount} shift(s) → ACTIVE`);
-    }
-
-    if (completedResult.modifiedCount > 0) {
-      console.log(`${completedResult.modifiedCount} shift(s) → COMPLETED`);
-    }
-  } catch (error) {
-    console.error('Shift Cron Error:', error);
-  }
-});
 
 const ShiftService = {
   sendShiftToBartender,

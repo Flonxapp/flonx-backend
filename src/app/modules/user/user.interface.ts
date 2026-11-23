@@ -16,6 +16,8 @@ export interface TUser {
   isVerified: boolean;
   isResetVerified: boolean;
   codeExpireIn: Date;
+  otpAttempts: number;
+  guestSecretHash?: string;
   isActive: boolean;
   isDeleted: boolean;
   isStripeAccountConnected: boolean;

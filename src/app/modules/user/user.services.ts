@@ -21,10 +21,9 @@ import { VenueOwner } from '../venue_owner/venue_owner.model';
 import { USER_ROLE } from './user.constant';
 import { TUser, TUserRole } from './user.interface';
 import { User } from './user.model';
+import { checkOtp, generateOtp } from '../../utilities/otp';
 import { createToken } from './user.utils';
-const generateVerifyCode = (): number => {
-  return Math.floor(1000 + Math.random() * 9000);
-};
+const generateVerifyCode = generateOtp;
 const createProfileByRole = async (user: any, payload: any, session: any) => {
   const base = {
     email: user.email,
@@ -147,6 +146,7 @@ const registerUser = async (
           role,
           verifyCode,
           codeExpireIn,
+          otpAttempts: 0,
         },
         { new: true, session },
       );
@@ -222,15 +222,10 @@ const verifyCode = async (email: string, verifyCode: number) => {
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found');
   }
-  if (user.codeExpireIn < new Date(Date.now())) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Verify code is expired');
-  }
-  if (verifyCode !== user.verifyCode) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Code doesn't match");
-  }
+  await checkOtp(user, 'verifyCode', verifyCode);
   await User.findOneAndUpdate(
     { email: email },
-    { isVerified: true },
+    { isVerified: true, otpAttempts: 0, $unset: { verifyCode: 1 } },
     { new: true, runValidators: true },
   );
 
@@ -264,7 +259,11 @@ const resendVerifyCode = async (email: string) => {
   const verifyCode = generateVerifyCode();
   const updateUser = await User.findOneAndUpdate(
     { email: email },
-    { verifyCode: verifyCode, codeExpireIn: new Date(Date.now() + 5 * 60000) },
+    {
+      verifyCode: verifyCode,
+      codeExpireIn: new Date(Date.now() + 5 * 60000),
+      otpAttempts: 0,
+    },
     { new: true, runValidators: true },
   );
   if (!updateUser) {

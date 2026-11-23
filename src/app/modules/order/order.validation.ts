@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export const cancelOrderValidation = z.object({
+  body: z
+    .object({
+      reason: z.string().trim().max(500).optional(),
+    })
+    .optional(),
+});
+
 export const tipToBartenderValidation = z.object({
   body: z.object({
     amount: z

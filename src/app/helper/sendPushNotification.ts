@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios';
+import { errorLogger } from '../shared/logger';
 
 interface INotificationPayload {
   playerIds: string[];
@@ -36,7 +37,10 @@ const sendPushNotification = async ({
       },
     );
   } catch (error: any) {
-    console.error('OneSignal Error:', error?.response?.data || error.message);
+    errorLogger.error(
+      'OneSignal Error:',
+      error?.response?.data || error.message,
+    );
   }
 };
 

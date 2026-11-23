@@ -20,6 +20,8 @@ import { supportRoutes } from '../modules/support/support.routes';
 import { userRoutes } from '../modules/user/user.routes';
 import { venueRoutes } from '../modules/venue/venue.routes';
 import { venueOwnerRoutes } from '../modules/venue_owner/venue_owner.routes';
+import { transactionRoutes } from '../modules/transaction/transaction.routes';
+import { withdrawRequestRoutes } from '../modules/withdraw_request/withdraw_request.routes';
 
 const router = Router();
 
@@ -100,6 +102,14 @@ const moduleRoutes = [
   {
     path: '/support',
     router: supportRoutes,
+  },
+  {
+    path: '/withdraw-request',
+    router: withdrawRequestRoutes,
+  },
+  {
+    path: '/transaction',
+    router: transactionRoutes,
   },
   {
     path: '/notification',

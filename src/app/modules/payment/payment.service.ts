@@ -9,6 +9,7 @@ import { ENUM_ORDER_STATUS } from '../order/order.enum';
 import { Order } from '../order/order.model';
 import Transaction from '../transaction/transaction.model';
 import { VenueOwner } from '../venue_owner/venue_owner.model';
+import { errorLogger } from '../../shared/logger';
 
 const stripe = new Stripe(config.stripe.stripe_secret_key as string);
 
@@ -77,7 +78,7 @@ export const getVenueOwnerWallet = async (venueOwnerId: string) => {
           0,
         ) / 100;
     } catch (err: any) {
-      console.error('Failed to fetch Stripe balance:', err);
+      errorLogger.error('Failed to fetch Stripe balance:', err);
     }
   }
 

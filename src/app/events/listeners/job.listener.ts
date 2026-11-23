@@ -12,7 +12,6 @@ import { appEventEmitter } from '../eventEmitter';
 appEventEmitter.on(
   'job.application.accepted',
   async (payload: { jobId: string; bartender: string; customer: string }) => {
-    console.log('Hi from emitter');
     await NotificationService.sendNotification({
       receiver: payload.bartender,
       title: 'Application Accepted 🎉',

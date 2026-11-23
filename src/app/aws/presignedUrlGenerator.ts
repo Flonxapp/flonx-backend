@@ -4,6 +4,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import dotenv from 'dotenv';
 import httpStatus from 'http-status';
 import AppError from '../error/appError';
+import { errorLogger } from '../shared/logger';
 
 dotenv.config();
 
@@ -70,7 +71,7 @@ export const generatePresignedUrl = async ({
     const uploadURL = await getSignedUrl(s3, command, { expiresIn: 60 }); // URL valid for 60 seconds
     return { uploadURL, fileName };
   } catch (err) {
-    console.error('Error generating presigned URL:', err);
+    errorLogger.error('Error generating presigned URL:', err);
     throw new AppError(
       httpStatus.SERVICE_UNAVAILABLE,
       'Error generating presigned URL',
@@ -89,7 +90,7 @@ export const generateMultiplePresignedUrls = async (
     );
     return presignedUrls;
   } catch (err) {
-    console.error('Error generating multiple presigned URLs:', err);
+    errorLogger.error('Error generating multiple presigned URLs:', err);
     throw new AppError(
       httpStatus.SERVICE_UNAVAILABLE,
       'Error generating multiple presigned URLs',

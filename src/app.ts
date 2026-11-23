@@ -26,8 +26,15 @@ import notFound from './app/middlewares/notFound';
 import { rateLimiters } from './app/middlewares/ratelimiter.middleware';
 import { USER_ROLE } from './app/modules/user/user.constant';
 import router from './app/routes';
+import config from './app/config';
+import { Venue } from './app/modules/venue/venue.model';
+import mongoose, { Types } from 'mongoose';
 const app: Application = express();
-// parser
+
+// real client IP behind nginx / load balancer (needed for rate limiting)
+app.set('trust proxy', config.trust_proxy);
+app.disable('x-powered-by');
+
 app.post(
   '/flonx-webhook',
   express.raw({ type: 'application/json' }),
@@ -39,32 +46,22 @@ app.post(
   handleConnectedAccountWebhook,
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 app.use(helmet());
 
-app.use(
-  cors({
-    origin: [
-      'http://45.55.251.203:3001',
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:5173',
-      'https://admin.flonxapp.com',
-      'https://venue.flonxapp.com',
-      'https://bartender.flonxapp.com',
-      'https://flonxapp.com',
-    ],
-    // origin: '*',
-    credentials: true,
-  }),
-);
+app.use(cors({ origin: config.cors_origins, credentials: true }));
+
+app.get('/health', (req, res) => {
+  const dbUp = mongoose.connection.readyState === 1;
+  res.status(dbUp ? 200 : 503).json({ status: dbUp ? 'ok' : 'db_down' });
+});
 app.use('/uploads', express.static('uploads'));
 // application routers ----------------
 app.use(rateLimiters.apiLimiter);
 app.use('/api/v1', router);
-app.post('/contact-us', sendContactUsEmail);
+app.post('/contact-us', rateLimiters.otpLimiter, sendContactUsEmail);
 
 // onboarding refresh --------------
 router.get('/stripe/onboarding/refresh', onboardingRefresh);
@@ -110,15 +107,31 @@ app.post(
   },
 );
 
-app.post('/generate-qr-code/:id', auth(...allRoles), async (req, res) => {
-  const { id } = req.params;
-  try {
-    const qrCodeUrl = await generateVenueQRCode(id);
-    res.json({ qrCodeUrl });
-  } catch (error) {
-    res.status(500).json({ message: 'Error generating QR code' });
-  }
-});
+app.post(
+  '/generate-qr-code/:id',
+  auth(USER_ROLE.venueOwner, USER_ROLE.superAdmin),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      if (!Types.ObjectId.isValid(id)) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Invalid venue id');
+      }
+      const filter: Record<string, unknown> = { _id: id };
+      if (req.user.role === USER_ROLE.venueOwner) {
+        filter.venueOwner = req.user.profileId;
+      }
+      const venue = await Venue.findOne(filter).select('_id');
+      if (!venue) {
+        throw new AppError(httpStatus.NOT_FOUND, 'Venue not found');
+      }
+      const qrCodeUrl = await generateVenueQRCode(id);
+      await Venue.updateOne({ _id: id }, { qrCodeUrl });
+      res.json({ qrCodeUrl });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 // global error handler
 app.use(globalErrorHandler);

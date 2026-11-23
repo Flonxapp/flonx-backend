@@ -152,12 +152,6 @@ const getPaymentMethods = async (customerId: string) => {
     type: 'card',
   });
 
-  console.log(
-    'Retrieved payment methods from Stripe:',
-    paymentMethods.data.length,
-    paymentMethods.data,
-  );
-
   // REMOVE DUPLICATES
   const uniqueMap = new Map();
 

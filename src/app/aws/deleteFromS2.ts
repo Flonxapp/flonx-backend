@@ -5,6 +5,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import dotenv from 'dotenv';
+import { errorLogger, logger } from '../shared/logger';
 dotenv.config();
 
 // Initialize the S3 client
@@ -31,7 +32,7 @@ export const deleteFileFromS3 = async (fileName: string) => {
       await s3.send(headCommand);
     } catch (err: any) {
       if (err.name === 'NotFound') {
-        console.log(`File ${decodedFileName} does not exist in S3.`);
+        logger.info(`File ${decodedFileName} does not exist in S3.`);
         return;
       }
       throw err;
@@ -44,12 +45,12 @@ export const deleteFileFromS3 = async (fileName: string) => {
     });
 
     await s3.send(deleteCommand);
-    console.log(`Successfully deleted ${decodedFileName} from S3`);
+    logger.info(`Successfully deleted ${decodedFileName} from S3`);
   } catch (err: any) {
     if (err.name === 'NotFound') {
-      console.error(`File ${decodedFileName} was not found in S3.`);
+      errorLogger.error(`File ${decodedFileName} was not found in S3.`);
     } else {
-      console.error('Error deleting file from S3:', err);
+      errorLogger.error('Error deleting file from S3:', err);
     }
   }
 };

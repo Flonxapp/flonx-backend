@@ -1,56 +1,63 @@
+import { Request } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import config from '.';
 
-// Global API limiter
-export const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 60, // 60 requests per minute
+const tooMany = (message: string) => ({ success: false, message });
 
-  standardHeaders: true,
-  legacyHeaders: false,
+const ipKey = (req: Request) => ipKeyGenerator(req.ip || '');
 
-  message: {
-    success: false,
-    message: 'Too many requests. Please try again after a minute.',
-  },
-});
-
-// Auth limiter (strict)
-export const authLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 3,
-
-  standardHeaders: true,
-  legacyHeaders: false,
-
-  message: {
-    success: false,
-    message: 'Too many login attempts. Please try again after 1 minute.',
-  },
-
-  keyGenerator: (req) => {
-    // limit by email if exists
-    if (req.body?.email) {
-      return req.body.email;
+// Logged-in users are limited per account, so customers sharing a venue's
+// Wi-Fi don't use up each other's limit. Only a valid token counts.
+const userOrIpKey = (req: Request) => {
+  let token = req.headers.authorization;
+  if (token) {
+    if (token.startsWith('Bearer ')) token = token.slice(7);
+    try {
+      const decoded = jwt.verify(
+        token.trim(),
+        config.jwt_access_secret as string,
+      ) as JwtPayload;
+      if (decoded?.id) return `user:${decoded.id}`;
+    } catch {
+      // fall back to IP
     }
+  }
+  return ipKey(req);
+};
 
-    // safe IP handling for IPv6
-    return ipKeyGenerator(req.ip || '');
-  },
+// email + IP, so one attacker can't lock a user out from everywhere
+const emailAndIpKey = (req: Request) => {
+  const email = String(req.body?.email || '')
+    .trim()
+    .toLowerCase();
+  return email ? `${email}|${ipKey(req)}` : ipKey(req);
+};
 
-  handler: (req, res) => {
-    return res.status(429).json({
-      success: false,
-      message: 'Too many login attempts. Please try again after 1 minute.',
-    });
-  },
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: config.rate_limit.api_per_minute,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  message: tooMany('Too many requests. Please try again in a minute.'),
 });
 
-// OTP / sensitive actions
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: config.rate_limit.login_per_15_minutes,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: emailAndIpKey,
+  skipSuccessfulRequests: true,
+  message: tooMany('Too many login attempts. Please try again later.'),
+});
+
 export const otpLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 3,
-  message: {
-    success: false,
-    message: 'Too many OTP requests. Slow down.',
-  },
+  windowMs: 15 * 60 * 1000,
+  limit: config.rate_limit.otp_per_15_minutes,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: emailAndIpKey,
+  message: tooMany('Too many code requests. Please try again later.'),
 });

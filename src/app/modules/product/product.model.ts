@@ -40,5 +40,8 @@ const ProductSchema = new Schema<IProduct>(
   { timestamps: true },
 );
 
+ProductSchema.index({ venue: 1, isDeleted: 1, category: 1 });
+ProductSchema.index({ venueOwner: 1, isDeleted: 1 });
+
 const Product = mongoose.model<IProduct>('Product', ProductSchema);
 export default Product;

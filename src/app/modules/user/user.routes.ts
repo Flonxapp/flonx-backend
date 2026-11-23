@@ -6,19 +6,22 @@ import validateRequest from '../../middlewares/validateRequest';
 import { USER_ROLE } from './user.constant';
 import userControllers from './user.controller';
 import userValidations from './user.validation';
+import { otpLimiter } from '../../config/reteLimit.config';
 
 const router = Router();
 
-router.post('/register-user', userControllers.registerUser);
+router.post('/register-user', otpLimiter, userControllers.registerUser);
 
 router.post(
   '/verify-code',
+  otpLimiter,
   validateRequest(userValidations.verifyCodeValidationSchema),
   userControllers.verifyCode,
 );
 
 router.post(
   '/resend-verify-code',
+  otpLimiter,
   validateRequest(userValidations.resendVerifyCodeSchema),
   userControllers.resendVerifyCode,
 );

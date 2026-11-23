@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { errorLogger, logger } from '../shared/logger';
 
 const unlinkFile = (filePath: string) => {
   const fullPath = path.join(process.cwd(), filePath);
@@ -8,13 +9,13 @@ const unlinkFile = (filePath: string) => {
     // Unlink the file if it exists---------
     fs.unlink(fullPath, (err) => {
       if (err) {
-        console.error(`Error deleting file: ${filePath}`, err);
+        errorLogger.error(`Error deleting file: ${filePath}`, err);
       } else {
-        console.log(`File deleted: ${filePath}`);
+        logger.info(`File deleted: ${filePath}`);
       }
     });
   } else {
-    console.log(`File does not exist`);
+    logger.info(`File does not exist`);
   }
 };
 

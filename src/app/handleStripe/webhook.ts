@@ -4,14 +4,17 @@
 import { Request, Response } from 'express';
 import Stripe from 'stripe';
 import config from '../config';
-import { Order } from '../modules/order/order.model';
+import OrderRefundService from '../modules/order/order.refund.service';
 import StripeService from '../modules/stripe/stripe.service';
 import {
+  ENUM_TRANSACTION_REASON,
+  TRANSACTION_DIRECTION,
   TRANSACTION_STATUS,
   TRANSACTION_TYPE,
 } from '../modules/transaction/transaction.enum';
 import Transaction from '../modules/transaction/transaction.model';
 import { VenueOwner } from '../modules/venue_owner/venue_owner.model';
+import WithdrawRequestService from '../modules/withdraw_request/withdraw_request.service';
 import { errorLogger, logger } from '../shared/logger';
 import { handlePaymentSuccess } from './handlePaymentSuccess';
 
@@ -28,7 +31,6 @@ const handleWebhook = async (req: Request, res: Response) => {
     );
     logger.info(`Received Stripe webhook: ${event.type}`, { id: event.id });
 
-    // Handle different event types
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -49,7 +51,6 @@ const handleWebhook = async (req: Request, res: Response) => {
       }
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        // If you stored metadata while creating PaymentIntent
         const metadata = paymentIntent.metadata;
         const paymentMethodId: any = paymentIntent?.payment_method;
         const customerId = paymentIntent.customer;
@@ -57,7 +58,6 @@ const handleWebhook = async (req: Request, res: Response) => {
           metadata,
           paymentIntent.id,
           paymentIntent.amount / 100,
-          // paymentMethodId,
         );
 
         break;
@@ -68,7 +68,7 @@ const handleWebhook = async (req: Request, res: Response) => {
           try {
             await StripeService.updateStripeConnectedAccountStatus(account.id);
           } catch (err) {
-            console.error(
+            errorLogger.error(
               `Failed to update client status for Stripe account ID: ${account.id}`,
               err,
             );
@@ -83,9 +83,17 @@ const handleWebhook = async (req: Request, res: Response) => {
         break;
       }
 
-      // handleWebhook.ts — transfer.created case
       case 'transfer.created': {
         const transfer = event.data.object as Stripe.Transfer;
+
+        // withdrawal transfer: finish the request (no-op if already done)
+        if (transfer.metadata?.withdrawRequestId) {
+          await WithdrawRequestService.finalizeApprovedTransfer(
+            transfer.metadata.withdrawRequestId,
+            transfer,
+          );
+          break;
+        }
 
         const venueOwner = await VenueOwner.findOne({
           stripeConnectedAccountId: transfer.destination,
@@ -99,25 +107,26 @@ const handleWebhook = async (req: Request, res: Response) => {
           return res.status(200).send('Venue owner not found');
         }
 
+        // transfer made outside the app, recorded only, wallet not touched
         try {
-          const createTransfer = await Transaction.create({
+          await Transaction.create({
             venueOwner: venueOwner._id,
             type: TRANSACTION_TYPE.TRANSFER,
+            direction: TRANSACTION_DIRECTION.NONE,
             amount: transfer.amount / 100,
+            currency: transfer.currency,
             status: TRANSACTION_STATUS.COMPLETED,
             stripeTransferId: transfer.id,
+            stripeAccountId: transfer.destination as string,
             stripeEventId: event.id,
-            metadata: transfer.metadata,
+            description: 'Transfer made outside the app',
+            metadata: {
+              ...transfer.metadata,
+              reason: ENUM_TRANSACTION_REASON.MANUAL_TRANSFER,
+            },
           });
 
-          // mark the order so pending balance calc is correct
-          if (transfer.metadata?.taskId) {
-            await Order.findByIdAndUpdate(transfer.metadata.taskId, {
-              isTransferSent: true,
-            });
-          }
-
-          errorLogger.info('transfer.created transaction recorded', {
+          logger.info('manual transfer.created transaction recorded', {
             transferId: transfer.id,
             venueOwnerId: venueOwner._id,
           });
@@ -133,13 +142,24 @@ const handleWebhook = async (req: Request, res: Response) => {
 
         break;
       }
+      case 'refund.updated':
+      case 'charge.refund.updated': {
+        const refund = event.data.object as Stripe.Refund;
+        await OrderRefundService.handleRefundUpdated(refund);
+        break;
+      }
+      case 'transfer.reversed': {
+        const transfer = event.data.object as Stripe.Transfer;
+        await WithdrawRequestService.handleTransferReversed(transfer);
+        break;
+      }
       default:
-        console.log(`Unhandled event type ${event.type}`);
+        logger.info(`Unhandled event type ${event.type}`);
     }
 
     res.status(200).send('Success');
   } catch (err: any) {
-    console.error('Webhook error:', err.message);
+    errorLogger.error('Webhook error:', err.message);
     res.status(400).send(`Webhook Error: ${err.message}`);
   }
 };

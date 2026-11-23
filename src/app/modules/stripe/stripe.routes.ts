@@ -17,12 +17,6 @@ router.post(
   StripeController.updateOnboardingLink,
 );
 router.post(
-  '/make-withdraw',
-  auth(USER_ROLE.venueOwner),
-
-  StripeController.withdrawMoney,
-);
-router.post(
   '/remove-payment-info',
   auth(USER_ROLE.customer),
   StripeController.detachPaymentMethod,

@@ -1,5 +1,10 @@
 import { model, Schema } from 'mongoose';
-import { TRANSACTION_STATUS, TRANSACTION_TYPE } from './transaction.enum';
+import {
+  deriveTransactionDirection,
+  TRANSACTION_DIRECTION,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from './transaction.enum';
 import { ITransaction } from './transaction.interface';
 
 const transactionSchema = new Schema<ITransaction>(
@@ -7,7 +12,7 @@ const transactionSchema = new Schema<ITransaction>(
     venueOwner: {
       type: Schema.Types.ObjectId,
       ref: 'VenueOwner',
-      index: true,
+      default: null,
     },
 
     customer: {
@@ -19,21 +24,25 @@ const transactionSchema = new Schema<ITransaction>(
     order: {
       type: Schema.Types.ObjectId,
       ref: 'Order',
-      index: true,
+      default: null,
     },
 
     type: {
       type: String,
       enum: Object.values(TRANSACTION_TYPE),
       required: true,
-      index: true,
     },
 
     status: {
       type: String,
       enum: Object.values(TRANSACTION_STATUS),
       default: TRANSACTION_STATUS.PENDING,
-      index: true,
+    },
+
+    direction: {
+      type: String,
+      enum: Object.values(TRANSACTION_DIRECTION),
+      required: true,
     },
 
     amount: {
@@ -45,21 +54,19 @@ const transactionSchema = new Schema<ITransaction>(
     currency: {
       type: String,
       default: 'usd',
+      lowercase: true,
     },
 
-    stripePaymentIntentId: { type: String, index: true },
+    stripePaymentIntentId: { type: String },
     stripeChargeId: { type: String },
-    stripeTransferId: { type: String, index: true },
-    stripePayoutId: { type: String, index: true },
+    stripeTransferId: { type: String },
+    stripePayoutId: { type: String },
     stripeRefundId: { type: String },
-
-    stripeAccountId: {
-      type: String,
-    },
+    stripeAccountId: { type: String },
 
     stripeEventId: {
       type: String,
-      unique: true, // prevents duplicate webhook processing
+      unique: true,
       sparse: true,
     },
 
@@ -76,6 +83,28 @@ const transactionSchema = new Schema<ITransaction>(
     timestamps: true,
   },
 );
+
+// set direction from type and reason when it's missing
+transactionSchema.pre('validate', function (next) {
+  if (!this.direction) {
+    this.direction = deriveTransactionDirection(
+      this.type,
+      this.metadata?.reason,
+    );
+  }
+  next();
+});
+
+transactionSchema.index({ venueOwner: 1, createdAt: -1 });
+transactionSchema.index({ customer: 1, createdAt: -1 });
+transactionSchema.index({ type: 1, createdAt: -1 });
+transactionSchema.index({ status: 1, createdAt: -1 });
+transactionSchema.index({ createdAt: -1 });
+transactionSchema.index({ order: 1, type: 1 });
+transactionSchema.index({ stripePaymentIntentId: 1 });
+transactionSchema.index({ stripeTransferId: 1 });
+transactionSchema.index({ stripePayoutId: 1 });
+transactionSchema.index({ stripeRefundId: 1 });
 
 const Transaction = model<ITransaction>('Transaction', transactionSchema);
 export default Transaction;

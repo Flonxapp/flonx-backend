@@ -2,6 +2,7 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import config from '../config';
+import { logger } from '../shared/logger';
 
 const simpleAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -33,7 +34,7 @@ const simpleAuth = async (req: Request, res: Response, next: NextFunction) => {
 
     next(); // Proceed to the next middleware
   } catch (error) {
-    console.log(error);
+    logger.info(error);
     next(); // Ignore errors and proceed
   }
 };

@@ -116,6 +116,7 @@ const guestAuth = catchAsync(async (req, res) => {
     req.body.deviceId,
     req.body.playerId,
     req.body.platform,
+    req.body.guestSecret,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

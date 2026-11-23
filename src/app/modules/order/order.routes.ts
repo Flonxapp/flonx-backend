@@ -3,7 +3,10 @@ import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { USER_ROLE } from '../user/user.constant';
 import OrderController from './order.controller';
-import { tipToBartenderValidation } from './order.validation';
+import {
+  cancelOrderValidation,
+  tipToBartenderValidation,
+} from './order.validation';
 
 const router = express.Router();
 
@@ -35,6 +38,12 @@ router.patch(
   OrderController.markAsUnavailableAndRefund,
 );
 
+router.patch(
+  '/cancel/:id',
+  auth(USER_ROLE.customer, USER_ROLE.bartender),
+  validateRequest(cancelOrderValidation),
+  OrderController.cancelOrder,
+);
 router.patch(
   '/update-status/:id',
   auth(USER_ROLE.customer, USER_ROLE.bartender),

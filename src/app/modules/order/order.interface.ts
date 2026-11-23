@@ -21,9 +21,18 @@ export interface IOrder extends Document {
   status: (typeof ENUM_ORDER_STATUS)[keyof typeof ENUM_ORDER_STATUS];
   paymentIntentId?: string;
   tipAmount?: number;
+  tipPaymentIntentIds?: string[];
   createdAt?: Date;
   updatedAt?: Date;
   orderCode: string;
   isTransferSent: boolean;
   colorCode?: string;
+  cancelledBy?: string;
+  cancelledAt?: Date;
+  cancelReason?: string;
+  refundStatus?: string;
+  stripeRefundId?: string;
+  refundedAmount?: number;
+  refundAttempts?: number;
+  refundError?: string;
 }

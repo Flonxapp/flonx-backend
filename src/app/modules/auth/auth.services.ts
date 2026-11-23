@@ -15,11 +15,12 @@ import { USER_ROLE } from '../user/user.constant';
 import { ILoginWithGoogle, TUser, TUserRole } from '../user/user.interface';
 import { User } from '../user/user.model';
 import { createToken, verifyToken } from '../user/user.utils';
+import { Buffer } from 'buffer';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { checkOtp, generateOtp } from '../../utilities/otp';
 import { TLoginUser } from './auth.interface';
 
-const generateVerifyCode = (): number => {
-  return Math.floor(1000 + Math.random() * 9000);
-};
+const generateVerifyCode = generateOtp;
 const loginUserIntoDB = async (payload: TLoginUser) => {
   const user = await User.findOne({ email: payload.email });
 
@@ -272,6 +273,7 @@ const forgetPassword = async (email: string) => {
       resetCode: resetCode,
       isResetVerified: false,
       codeExpireIn: new Date(Date.now() + 5 * 60000),
+      otpAttempts: 0,
     },
   );
 
@@ -296,15 +298,10 @@ const verifyResetOtp = async (email: string, resetCode: number) => {
     throw new AppError(httpStatus.FORBIDDEN, 'This user is blocked');
   }
 
-  if (user.codeExpireIn < new Date(Date.now())) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Reset code is expire');
-  }
-  if (user.resetCode !== Number(resetCode)) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Reset code is invalid');
-  }
+  await checkOtp(user, 'resetCode', resetCode);
   await User.findOneAndUpdate(
     { email: email },
-    { isResetVerified: true },
+    { isResetVerified: true, otpAttempts: 0, $unset: { resetCode: 1 } },
     { new: true, runValidators: true },
   );
   return null;
@@ -395,6 +392,7 @@ const resendResetCode = async (email: string) => {
       resetCode: resetCode,
       isResetVerified: false,
       codeExpireIn: new Date(Date.now() + 5 * 60000),
+      otpAttempts: 0,
     },
   );
   sendEmail({
@@ -425,6 +423,7 @@ const resendVerifyCode = async (email: string) => {
       verifyCode: verifyCode,
       isVerified: false,
       codeExpireIn: new Date(Date.now() + 5 * 60000),
+      otpAttempts: 0,
     },
   );
   sendEmail({
@@ -452,6 +451,7 @@ const changeEmail = async (
   await User.findByIdAndUpdate(userData.id, {
     emailChangeCode: code,
     codeExpireIn: new Date(Date.now() + 2 * 60000),
+    otpAttempts: 0,
   });
   sendEmail({
     email: payload.email,
@@ -460,18 +460,44 @@ const changeEmail = async (
   });
 };
 
+const hashGuestSecret = (secret: string) =>
+  createHash('sha256').update(secret).digest('hex');
+
+// The device id alone is not proof of identity. The first login returns a
+// random guestSecret; later logins for that device must send it back.
 const guestAuth = async (
   deviceId: string,
   playerId?: string,
   platform?: string,
+  guestSecret?: string,
 ) => {
-  if (!deviceId) {
+  if (!deviceId || typeof deviceId !== 'string' || deviceId.length > 200) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Device ID is required');
   }
 
-  let user = await User.findOne({ deviceId, isGuest: true });
+  let user = await User.findOne({ deviceId }).select('+guestSecretHash');
+  let newSecret: string | undefined;
+
+  if (user && user.guestSecretHash) {
+    const given = guestSecret ? hashGuestSecret(String(guestSecret)) : '';
+    const expected = user.guestSecretHash;
+    if (
+      given.length !== expected.length ||
+      !timingSafeEqual(Buffer.from(given), Buffer.from(expected))
+    ) {
+      throw new AppError(httpStatus.UNAUTHORIZED, 'Invalid guest session');
+    }
+  } else if (user && config.guest_secret_enforced && user.isGuest) {
+    // guest created before secrets existed: issue one now
+    newSecret = randomBytes(32).toString('hex');
+    await User.updateOne(
+      { _id: user._id },
+      { guestSecretHash: hashGuestSecret(newSecret) },
+    );
+  }
 
   if (!user) {
+    newSecret = randomBytes(32).toString('hex');
     user = await User.create({
       role: 'customer',
       isGuest: true,
@@ -479,6 +505,7 @@ const guestAuth = async (
       email: '',
       profileId: null,
       isVerified: true,
+      guestSecretHash: hashGuestSecret(newSecret),
     });
 
     const customer = await Customer.create({
@@ -492,7 +519,6 @@ const guestAuth = async (
     await user.save();
   }
 
-  // ❌ safety check
   if (!user.isGuest) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -523,11 +549,11 @@ const guestAuth = async (
     config.jwt_refresh_expires_in as string,
   );
 
-  user.password = '';
-
   return {
     accessToken,
     refreshToken,
+    // only returned when issued; the client must store it
+    ...(newSecret ? { guestSecret: newSecret } : {}),
   };
 };
 
