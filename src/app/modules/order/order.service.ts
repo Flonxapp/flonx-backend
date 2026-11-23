@@ -498,32 +498,44 @@ const tipToBartender = async (
     await Customer.findByIdAndUpdate(order.customer._id, { stripeCustomerId });
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: amountInCents,
-    currency: 'usd',
-    customer: stripeCustomerId,
+  let paymentIntent;
+  try {
+    paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: 'usd',
+      customer: stripeCustomerId,
 
-    automatic_payment_methods: {
-      enabled: true,
-      allow_redirects: 'never',
-    },
-    // if user selected saved card
-    ...(paymentMethodId && {
-      payment_method: paymentMethodId,
-      confirm: true,
-    }),
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'never',
+      },
+      // if user selected saved card
+      ...(paymentMethodId && {
+        payment_method: paymentMethodId,
+        confirm: true,
+      }),
 
-    // allow saving card for future
-    ...(!paymentMethodId && {
-      setup_future_usage: 'off_session',
-    }),
+      // allow saving card for future
+      ...(!paymentMethodId && {
+        setup_future_usage: 'off_session',
+      }),
 
-    metadata: {
-      orderId: order._id.toString(),
-      paymentPurpose: ENUM_PAYMENT_PURPOSE.TIP,
-      isSavedCardUsed: paymentMethodId ? 1 : 0,
-    },
-  });
+      metadata: {
+        orderId: order._id.toString(),
+        paymentPurpose: ENUM_PAYMENT_PURPOSE.TIP,
+        isSavedCardUsed: paymentMethodId ? 1 : 0,
+      },
+    });
+  } catch (error: any) {
+    // a saved card can be declined right away
+    if (error?.type === 'StripeCardError') {
+      throw new AppError(
+        httpStatus.PAYMENT_REQUIRED,
+        error.message || 'Your card was declined',
+      );
+    }
+    throw error;
+  }
 
   return {
     orderId: order._id,
